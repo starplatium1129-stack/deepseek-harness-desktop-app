@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
 async function main() {
   const packaged = process.argv.includes('--packaged');
-  const executablePath = packaged ? path.join(root, 'release/win-unpacked/DeepSeek Harness Desktop.exe') : require('electron');
+  const executablePath = process.env.DSH_SMOKE_EXECUTABLE || (packaged ? path.join(root, 'release/win-unpacked/DeepSeek Harness Desktop.exe') : require('electron'));
   const data = path.join(root, '.test-data', packaged ? 'packaged-ui' : 'development-ui');
   const env = { ...process.env, DSH_DESKTOP_TEST_DATA: data }; delete env.ELECTRON_RUN_AS_NODE;
   // Remove development tools from the child PATH to exercise bundled runtime startup.
