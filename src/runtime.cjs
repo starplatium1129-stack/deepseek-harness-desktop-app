@@ -4,6 +4,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { EventEmitter } = require('node:events');
 const semver = require('semver');
+const { prepareIntegrationPatch } = require('./integrations.cjs');
 
 const REGISTRY = 'https://registry.npmjs.org';
 const PACKAGE = '@deepseek-ai/dsh';
@@ -91,6 +92,8 @@ class HarnessProcess extends EventEmitter {
     await fs.access(entry);
     const launcher = path.resolve(path.dirname(this.node), '..', 'harness-launcher.cjs');
     let args = [entry, 'web', '--host', '127.0.0.1', '--port', '0', '--no-open'];
+    const patch = await prepareIntegrationPatch(path.dirname(launcher), this.root, this.home);
+    if (patch) args.splice(1, 1, '--profile', 'web', '--patch', patch);
     try { await fs.access(launcher); args.unshift(launcher); } catch {}
     const child = this.child = spawn(this.node, args, {
       cwd: this.home, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],

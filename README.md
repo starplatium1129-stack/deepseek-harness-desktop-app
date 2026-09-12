@@ -6,12 +6,14 @@
 
 ## 使用
 
-下载 Releases 中的 `DeepSeek-Harness-Desktop-0.1.0-Setup.exe`，安装后打开桌面快捷方式。
+下载 Releases 中的 `DeepSeek-Harness-Desktop-0.1.1-Setup.exe`，安装后打开桌面快捷方式。
 
 - **工作空间**：上游原生会话、工作区、模型及插件界面。
 - **桌面管理**：服务状态、API Key 加密保存、核心版本检查、诊断日志和数据目录。
 - 首次使用按上游引导选择工作区并配置模型。通过桌面保存的 DeepSeek API Key 在重启后生效。
 - 上游更新下载到隔离目录，校验包完整性并试启动；重启后备份数据再切换。失败自动恢复，成功后也可手动回退。
+- **联网搜索**：默认使用 Exa Search MCP 的免费通道，不依赖 DeepSeek API Key 或余额；Exa 自身仍有免费限流。网页读取继续使用上游 HTTP 后端。
+- **地区错误恢复**：遇到包含 `User location is not supported for the API use` 和 `FAILED_PRECONDITION` 的模型错误，且尚未收到任何流事件时，等待 1 秒、2 秒分别补试，最多两次。已有文字、思考、工具调用或其他流事件、用户取消、其他错误均不会触发该补试。
 
 本项目是社区封装，不是 DeepSeek 官方桌面发行版。图标由项目所有者提供。
 
@@ -25,6 +27,7 @@ npm run prepare:runtime
 npm start
 npm test
 npm run smoke
+node scripts/integration-smoke.cjs
 node scripts/ui-smoke.cjs
 npm run dist
 node scripts/ui-smoke.cjs --packaged

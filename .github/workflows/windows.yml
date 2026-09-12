@@ -20,6 +20,7 @@ jobs:
       - run: npm test
       - run: npm run prepare:runtime
       - run: npm run smoke
+      - run: node scripts/integration-smoke.cjs --offline
       - run: npm run dist
       - uses: actions/upload-artifact@v4
         with:

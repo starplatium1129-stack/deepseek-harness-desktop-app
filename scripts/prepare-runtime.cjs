@@ -10,6 +10,7 @@ async function main() {
   if (process.versions.node !== '24.18.0') throw new Error('Use Node 24.18.0 for the locked Windows runtime.');
   await fs.copyFile(process.execPath, path.join(runtime, 'node', 'node.exe'));
   await fs.copyFile(path.join(__dirname, 'harness-launcher.cjs'), path.join(runtime, 'harness-launcher.cjs'));
+  await fs.cp(path.join(root, 'integrations'), path.join(runtime, 'desktop-integrations'), { recursive: true });
   const npmPath = path.join(path.dirname(process.execPath), 'node_modules', 'npm');
   await fs.cp(npmPath, path.join(runtime, 'npm'), { recursive: true });
   const harness = path.join(runtime, 'harness');
