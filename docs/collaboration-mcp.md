@@ -2,9 +2,11 @@
 
 协作服务通过本机 stdio 暴露任务工具，由调用它的规划 Agent 派发、等待、审核，再定向修订。调度入口独立运行，不提供 HTTP，启动入口本身不修改客户端配置或提交模型任务。`scripts/connect-codex.cjs --install` 是单独的、显式注册 Codex 配置的操作，本机已执行并保留备份。
 
-实现位于 `collaboration/core.cjs`、`collaboration/adapters/`、`collaboration/mcp.cjs` 和 `collaboration/cli.cjs`。原始边界见 [协作设计](agent-collaboration-design.md)。协议服务版本独立记录为 `0.3.0`；桌面版与各原生执行器的版本分别维护。
+实现位于 `collaboration/core.cjs`、`collaboration/adapters/`、`collaboration/mcp.cjs` 和 `collaboration/cli.cjs`。原始边界见 [协作设计](agent-collaboration-design.md)。源码协议服务版本独立记录为 `0.4.0`；桌面版与各原生执行器的版本分别维护。新工作树源码不会自动部署到已注册的 0.3.0 服务入口。
 
 0.3.0 另外提供 start_run、list_runs、get_run、wait_run、pause_run、resume_run 六个长任务工具，总计十四个。后台 Codex 可持续审核和续派，不依赖当前聊天保持活动；具体参数、验证方式及恢复边界见 [长任务闭环](long-running-collaboration.md)。原八个工具仍管理单次执行，不能把 submit_task 当成自动项目循环。
+
+0.4.0 增加 `list_dispatcher_tasks`、`claim_delivery`、`resolve_delivery`，共十七个工具；`submit_task` 可绑定原 Codex 会话。当前主代理负责审核与续派的用法、官方工具中继及无人值守边界见 [原会话回传](codex-dispatcher-return.md)。
 
 ## 启动和连接
 

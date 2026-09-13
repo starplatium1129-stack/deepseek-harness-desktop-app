@@ -45,9 +45,11 @@
 
 ## Agent 协作派发（MCP）
 
+- 日常优先使用当前 Agent 软件自己的子代理；跨软件协作用于用户指定执行端或确有需要的任务。原主代理派发后保持执行，持续等待进度、读取成果、实际验收和按需续派，不以“已派发”作为最终回复提前结束。达到约定目标、遇到需要用户处理的实际阻塞或用户要求停止时，再结束并说明状态；运行中断后不能宣称会自动恢复。
 - 用户级 `agent-collaboration` MCP 已注册（`~/.zcode/cli/config.json`），任何新会话自动连接，与 Codex 共用同一共享服务。接口、参数约束和服务数据目录见 [collaboration-mcp.md](docs/collaboration-mcp.md)。
 - 用户要求"派发给 Harness / 协作执行"时：先 `list_executors` 看执行器 readiness，再 `submit_task`（goal、acceptance、绝对 repository、permission、deadlineAt、budget、新幂等键缺一不可）。单任务用 `wait_task` 等待结果；需要自动审核与续派的长任务使用 `start_run`，按 [长任务闭环协作](docs/long-running-collaboration.md) 设置验收、验证命令、轮次与截止时间。后台独立 Codex 回合负责审核和续派，不会自动唤醒当前聊天窗口。
 - 审核是派发端的责任：读结果后必须在任务 worktree 里实际运行验收命令，再 `review_task` 记录结论；修订走 `send_followup`。`accepted` 不等于合并——把 patch 应用回真实仓库是显式动作，先经用户确认。
+- 用户要求原 Codex 主代理审核与续派时，使用绑定 `dispatcher` 的单任务流程，按[原会话回传](docs/codex-dispatcher-return.md)取回事件、领取发送、通过官方任务消息工具中继并记录回执；该工具需要活跃 Codex 调用者，不能宣称共享守护进程会自动唤醒桌面原会话。
 - zcode 执行器需要窗口交接（readiness `native-window-handoff-required` 表示用户正在使用 ZCode），派发给它之前先确认 readiness。
 
 ## 依据与维护

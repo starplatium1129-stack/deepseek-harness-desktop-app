@@ -9,7 +9,7 @@ const { CollaborationService, git } = require('../collaboration/core.cjs');
 const { LongRunManager, decision, checkSpecs, runChecks } = require('../collaboration/long-run.cjs');
 const { resolveCodex } = require('../collaboration/codex-reviewer.cjs');
 
-const resources = path.resolve(__dirname, '../runtime');
+const resources = path.resolve(process.env.COLLABORATION_TEST_RESOURCES || path.join(__dirname, '../runtime'));
 const proposal = goal => ({ action: 'continue', review: 'not_applicable', summary: 'Plan one bounded step.', criteria: [{ index: 0, status: 'unknown', evidence: 'No execution evidence yet.' }], nextTask: { goal, acceptance: ['Update counter.txt only.'] } });
 const review = (complete, goal) => ({ action: complete ? 'complete' : 'continue', review: 'accepted', summary: 'Reviewed actual file evidence.', criteria: [{ index: 0, status: complete ? 'pass' : 'fail', evidence: complete ? 'Counter reached the requested value and checks passed.' : 'More increments remain.' }], nextTask: complete ? null : { goal, acceptance: ['Update counter.txt only.'] } });
 // The state-machine tests execute only the known inline fixture checks. Native

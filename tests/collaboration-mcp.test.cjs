@@ -73,7 +73,7 @@ test('stdio negotiates initialization, lists schemas and calls a read-only tool'
   assert.deepEqual(initialized.result.capabilities, { tools: { listChanged: false } });
   f.send({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
   const listed = (await f.reader.waitFor(2)).result.tools;
-  assert.deepEqual(listed.map(tool => tool.name), ['list_executors', 'submit_task', 'get_task', 'wait_task', 'read_result', 'send_followup', 'cancel_task', 'review_task', 'start_run', 'get_run', 'list_runs', 'wait_run', 'pause_run', 'resume_run']);
+  assert.deepEqual(listed.map(tool => tool.name), ['list_dispatcher_tasks', 'claim_delivery', 'resolve_delivery', 'list_executors', 'submit_task', 'get_task', 'wait_task', 'read_result', 'send_followup', 'cancel_task', 'review_task', 'start_run', 'get_run', 'list_runs', 'wait_run', 'pause_run', 'resume_run']);
   assert.ok(listed.every(tool => !('method' in tool) && tool.inputSchema.additionalProperties === false));
   const schema = listed.find(tool => tool.name === 'submit_task').inputSchema;
   assert.ok(schema.required.includes('permission'));

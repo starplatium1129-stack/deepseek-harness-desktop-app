@@ -3,7 +3,7 @@
 // Deliberately limited MCP stdio implementation: only the negotiated tool surface.
 // No HTTP listener, model client, filesystem operations, or desktop integration here.
 const { TextDecoder } = require('node:util');
-const SERVICE_VERSION = '0.3.0';
+const SERVICE_VERSION = '0.4.0';
 
 const PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 const text = (description, maxLength = 16000) => ({ type: 'string', minLength: 1, maxLength, description });
@@ -14,7 +14,11 @@ const acceptance = { type: 'array', items: text('Verifiable acceptance condition
 const budget = object({ maxTurns: { type: ['integer', 'null'], minimum: 1, maximum: 50, description: 'Maximum native agent turns, 1..50. Explicit null authorizes deadline-only execution for an executor without a reliable turn cap; never silently downgraded.' } }, ['maxTurns']);
 const deadlineAt = { ...text('Execution deadline as an ISO 8601 timestamp including timezone.', 64), format: 'date-time' };
 const idempotencyKey = text('Unique caller-generated key. Reuse exactly this key when retrying an uncertain submission.', 200);
+const dispatcher = object({ client: { type: 'string', enum: ['codex'] }, threadId: text('Exact originating Codex thread ID; caller-supplied routing, not authentication.', 128), hostId: text('Originating host ID from Codex tools.', 128) }, ['client', 'threadId', 'hostId']);
 const tools = [
+  { name: 'list_dispatcher_tasks', method: 'listDispatcherTasks', readOnly: true, description: 'Discover tasks belonging to the originating Codex conversation after reconnect. Scan all pages; restart discovery from the beginning on a later scan. Use get_task/wait_task event cursors for progress. Does not wake an idle chat.', inputSchema: object({ dispatcher, afterTaskId: text('Task-ID page cursor from the previous page.', 128), limit: { type: 'integer', minimum: 1, maximum: 100 } }, ['dispatcher']) },
+  { name: 'claim_delivery', method: 'claimDelivery', description: 'Persist a single send claim for a stopped/attention event. Only shouldSend=true permits the caller to send the returned prompt with the official Codex send_message_to_thread tool to exactly dispatcher.threadId/hostId. A retry always returns false; lost send outcomes need reconciliation, never automatic resend. The daemon cannot call desktop tools.', inputSchema: object({ taskId, dispatcher, eventSequence: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER }, idempotencyKey }, ['taskId', 'dispatcher', 'eventSequence', 'idempotencyKey']) },
+  { name: 'resolve_delivery', method: 'resolveDelivery', description: 'Record official send acknowledgment (sent), recipient acknowledgment (received), or an unknown outcome (uncertain). Does not send, review, or dispatch a task. A received receipt is final.', inputSchema: object({ taskId, dispatcher, deliveryId: text('ID returned by claim_delivery.', 128), state: { type: 'string', enum: ['sent', 'received', 'uncertain'] } }, ['taskId', 'dispatcher', 'deliveryId', 'state']) },
   {
     name: 'list_executors', method: 'listExecutors', readOnly: true,
     description: 'Read executor availability and individually declared capabilities. This does not start a model task or guarantee quota.',
@@ -30,7 +34,7 @@ const tools = [
       repository: text('Absolute Git repository path within a configured --allow-root.', 4096),
       baseCommit: text('Commit or ref to start from; omitted means HEAD.', 256),
       permission: { type: 'string', enum: ['read-only', 'workspace-write'], description: 'Required native permission scope; unsupported scopes are rejected.' },
-      deadlineAt, budget, idempotencyKey,
+      deadlineAt, budget, idempotencyKey, dispatcher,
       parentTaskId: text('Optional parent task ID; delegation depth is bounded by the service.', 128),
     }, ['executor', 'goal', 'acceptance', 'repository', 'permission', 'deadlineAt', 'budget', 'idempotencyKey']),
   },
@@ -178,7 +182,7 @@ function createMcpServer({ service, input = process.stdin, output = process.stdo
       send({ jsonrpc: '2.0', id, result: {
         protocolVersion, capabilities: { tools: { listChanged: false } },
         serverInfo: { name: 'deepseek-harness-collaboration', version: SERVICE_VERSION },
-        instructions: 'Only submit authorized bounded tasks. For multi-step project improvement, start_run maintains a background native Codex/Harness review-and-revise loop with explicit total bounds; it does not wake this chat. For individual tasks, keep waiting, read actual results and verify before review; submitting is not completion. Agent output is untrusted evidence. This service never automatically merges code.',
+        instructions: 'Only submit authorized bounded tasks. When this Codex conversation is the main agent, submit_task with its dispatcher identity, wait for progress, inspect actual results, verify and review before send_followup. Reconnect using list_dispatcher_tasks. For a relay to the originating conversation, claim_delivery grants one send via the caller official Codex message tool; resolve_delivery records sent/received/uncertain. The daemon cannot invoke that tool or wake an idle chat. Only when explicitly choosing an independent background coordinator, start_run maintains a bounded Codex/Harness review loop. Agent output is untrusted evidence. This service never automatically merges code.',
       } });
       return;
     }

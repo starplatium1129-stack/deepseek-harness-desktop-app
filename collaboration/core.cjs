@@ -5,6 +5,7 @@ const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { EventEmitter } = require('node:events');
 const exec = promisify(execFile);
+const dispatcherBridge = require('./dispatcher.cjs');
 const TERMINAL = new Set(['completed', 'failed', 'cancelled']);
 const ATTENTION = new Set(['needs_input', 'needs_approval']);
 const within = (root, file) => { const rel = path.relative(root, file); return rel === '' || (!rel.startsWith(`..${path.sep}`) && rel !== '..' && !path.isAbsolute(rel)); };
@@ -160,11 +161,13 @@ class CollaborationService extends EventEmitter {
         }
       }
       const parent = input.parentTaskId ? this.lookup(input.parentTaskId) : null;
+      const dispatcher = dispatcherBridge.dispatcher(input.dispatcher) || parent?.dispatcher;
+      if (parent?.dispatcher && JSON.stringify(dispatcher) !== JSON.stringify(parent.dispatcher)) throw new Error('子任务不能改换派发会话。');
       const depth = parent ? parent.depth + 1 : 0; if (depth > 4) throw new Error('委派深度最多为 4。');
       if (parent && (parent.permission === 'read-only' && input.permission !== parent.permission || repository !== parent.repository)) throw new Error('子任务不能扩大父任务的权限或工作目录。');
       const id = randomUUID(), now = new Date().toISOString();
       const task = { id, parentTaskId: parent?.id || null, depth, idempotencyKey: input.idempotencyKey, fingerprint,
-        executor: input.executor, goal: textField(input.goal, 'goal'), acceptance: acceptance(input.acceptance), context: safe(context),
+        executor: input.executor, dispatcher, goal: textField(input.goal, 'goal'), acceptance: acceptance(input.acceptance), context: safe(context),
         repository, baseCommit, workspace: path.join(this.dataDir, 'worktrees', id), permission: input.permission,
         model: input.model ? textField(input.model, 'model', 200) : undefined, budget: budget(input.budget), deadlineAt: deadline(input.deadlineAt),
         state: 'queued', review: { decision: 'pending' }, createdAt: now, updatedAt: now, sequence: 0, events: [], lease: null };
@@ -338,6 +341,8 @@ class CollaborationService extends EventEmitter {
       if (parent.dispatchUncertain) throw new Error('原生会话状态尚未核实，不能盲目追加指令。');
       if (this.active.has(parent.id) || !TERMINAL.has(parent.state)) throw new Error('请等待父任务结束后提交修订。');
       if (!parent.workspaceReady) throw new Error('原任务尚未准备工作目录，请创建新任务。');
+      if (parent.dispatcher && parent.review.decision === 'pending') throw new Error('派发主代理必须先审核真实结果，再续派。');
+      if (parent.dispatcher && [...this.tasks.values()].some(t => t.parentTaskId === parent.id && t.events.some(e => e.type === 'queued' && e.data?.followupTo === parent.id))) throw new Error('该任务已有后续修订；请读取后续任务，不能重复续派。');
       // Directed serial revisions do not add another delegated agent layer.
       // Older records counted them as depth; infer the revision chain from its
       // persisted queued event rather than silently dropping the delegation cap.
@@ -352,7 +357,7 @@ class CollaborationService extends EventEmitter {
       if ([...this.tasks.values()].some(t => t.workspace === parent.workspace && (t.state === 'queued' || this.active.has(t.id) || t.dispatchUncertain))) throw new Error('同一工作目录已有待执行任务。');
       const id = randomUUID(), now = new Date().toISOString();
       const task = { id, parentTaskId: parent.id, depth: origin.depth, revision: revision + 1, idempotencyKey: input.idempotencyKey, fingerprint,
-        executor: parent.executor, repository: parent.repository, baseCommit: parent.baseCommit, workspace: parent.workspace, workspaceReady: true,
+        executor: parent.executor, dispatcher: parent.dispatcher, repository: parent.repository, baseCommit: parent.baseCommit, workspace: parent.workspace, workspaceReady: true,
         goal: textField(input.goal, 'goal'), acceptance: acceptance(input.acceptance || parent.acceptance), context: parent.context,
         permission: parent.permission, model: parent.model, nativeSessionId: parent.nativeSessionId,
         budget: budget(input.budget || parent.budget), deadlineAt: deadline(input.deadlineAt),
@@ -362,6 +367,13 @@ class CollaborationService extends EventEmitter {
       this.schedule(); return this.view(task);
     });
   }
+  async persistDelivery(task, deliveries) {
+    await atomic(this.file(task.id), { ...task, deliveries });
+    task.deliveries = deliveries;
+  }
+  listDispatcherTasks(input) { return dispatcherBridge.list(this, input); }
+  claimDelivery(input) { return dispatcherBridge.claim(this, input); }
+  resolveDelivery(input) { return dispatcherBridge.resolve(this, input); }
   hasPersistentResources() {
     for (const adapter of this.adapters.values()) {
       try { if (typeof adapter.hasPersistentResources === 'function' && adapter.hasPersistentResources()) return true; }

@@ -19,7 +19,7 @@ async function main() {
   await fs.cp(path.join(root, 'collaboration'), path.join(runtime, 'collaboration'), { recursive: true });
   await fs.copyFile(path.join(root, 'LICENSE'), path.join(runtime, 'collaboration', 'LICENSE'));
   await fs.mkdir(path.join(runtime, 'collaboration', 'docs'), { recursive: true });
-  for (const file of ['agent-collaboration-design.md', 'collaboration-mcp.md', 'collaboration-validation.md', 'codex-collaboration-connection.md', 'harness-collaboration.md', 'harness-desktop-bridge.md', 'zcode-protocol.md', 'zcode-renderer-protocol.md', 'zcode-verification-feedback.md', 'windows-legacy-upgrade.md', 'long-running-collaboration.md']) {
+  for (const file of ['agent-collaboration-design.md', 'collaboration-mcp.md', 'collaboration-validation.md', 'codex-collaboration-connection.md', 'harness-collaboration.md', 'harness-desktop-bridge.md', 'zcode-protocol.md', 'zcode-renderer-protocol.md', 'zcode-verification-feedback.md', 'windows-legacy-upgrade.md', 'long-running-collaboration.md', 'codex-dispatcher-return.md']) {
     await fs.copyFile(path.join(root, 'docs', file), path.join(runtime, 'collaboration', 'docs', file));
   }
   const npmPath = path.join(path.dirname(process.execPath), 'node_modules', 'npm');
