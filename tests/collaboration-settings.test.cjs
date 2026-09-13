@@ -1,0 +1,20 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
+const { configure } = require('../scripts/configure-zcode-collaboration.cjs');
+const { executorSettings } = require('../collaboration/index.cjs');
+test('native profile choice is explicit local data and preserves its previous setting', async t => {
+  const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'collaboration-settings-'));
+  t.after(() => fs.rm(dataDir, { recursive: true, force: true }));
+  assert.deepEqual(await executorSettings(dataDir), {});
+  await configure({ dataDir, profileMode: 'dedicated' });
+  const result = await configure({ dataDir, profileMode: 'existing' });
+  assert.equal(result.launchedZCode, false);
+  assert.deepEqual(await executorSettings(dataDir), { zcode: { profileMode: 'existing' } });
+  const backup = (await fs.readdir(dataDir)).find(name => name.startsWith('executors.json.before-'));
+  assert.deepEqual(JSON.parse(await fs.readFile(path.join(dataDir, backup), 'utf8')), { zcode: { profileMode: 'dedicated' } });
+  await fs.writeFile(result.file, JSON.stringify({ zcode: { profileMode: 'existing', apiKey: 'not-a-setting' } }));
+  await assert.rejects(executorSettings(dataDir), /只支持/);
+});

@@ -17,6 +17,19 @@
 
 本项目是社区封装，不是 DeepSeek 官方桌面发行版。图标由项目所有者提供。
 
+## Agent 协作（0.2.2 接入验证版）
+
+协作服务 0.3.0 新增长任务入口：给定目标、验收条件、固定检查命令、轮次和截止时间后，后台原生 Codex 自动规划与审核，Harness 执行，检查结果进入下一轮判断。发起端断开后仍可继续；不会自动合并，也不会唤醒当前聊天窗口。使用方法与边界见 [长任务闭环](docs/long-running-collaboration.md)。桌面壳版本仍为 0.2.2。
+
+独立本机协作服务让规划 Agent 通过 MCP 派发任务，在隔离 worktree 中执行、返回事件和改动，再审核与定向修订。本机 0.2.2 已正式安装，当前 Codex 任务已直接完成真实派发、结果回传、测试审核和同会话修订，两轮共用安装版桌面内的同一原生 Agent。旧 Community 版本的长路径卸载问题已通过可恢复的安装记录修正解决。ZCode 的原版新会话验证仍未通过，目前按用户要求优先交付 Harness 通信，详情见验收记录。
+
+本机 Codex MCP 配置已注册，当前任务已加载并实际调用八个工具。具体状态见 [Codex 接入记录](docs/codex-collaboration-connection.md)、[MCP 使用说明](docs/collaboration-mcp.md)、[协作验收](docs/collaboration-validation.md)。入口随运行时打包，需要 Git；真实模型任务使用原生账户额度。
+
+```powershell
+npm run collaboration -- --allow-root D:\code\Deepseek-harness-destop --list-executors
+npm run smoke:collaboration -- --live
+```
+
 ## 开发与打包
 
 Windows x64，Node **24.18.0**。

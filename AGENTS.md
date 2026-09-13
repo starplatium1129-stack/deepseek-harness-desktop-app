@@ -43,6 +43,13 @@
 - 重做旧版前核实实际源码路径，保留可恢复快照及未提交内容。清理只针对已明确的旧源码范围，保留 Git 历史、用户数据和凭据；已有明确授权无需重复询问。
 - 使用简洁中文沟通，说明完成内容、验证结果和实际阻塞；未运行的测试、未发布的安装包、未验证的上游兼容性不得宣称完成。
 
+## Agent 协作派发（MCP）
+
+- 用户级 `agent-collaboration` MCP 已注册（`~/.zcode/cli/config.json`），任何新会话自动连接，与 Codex 共用同一共享服务。接口、参数约束和服务数据目录见 [collaboration-mcp.md](docs/collaboration-mcp.md)。
+- 用户要求"派发给 Harness / 协作执行"时：先 `list_executors` 看执行器 readiness，再 `submit_task`（goal、acceptance、绝对 repository、permission、deadlineAt、budget、新幂等键缺一不可）。单任务用 `wait_task` 等待结果；需要自动审核与续派的长任务使用 `start_run`，按 [长任务闭环协作](docs/long-running-collaboration.md) 设置验收、验证命令、轮次与截止时间。后台独立 Codex 回合负责审核和续派，不会自动唤醒当前聊天窗口。
+- 审核是派发端的责任：读结果后必须在任务 worktree 里实际运行验收命令，再 `review_task` 记录结论；修订走 `send_followup`。`accepted` 不等于合并——把 patch 应用回真实仓库是显式动作，先经用户确认。
+- zcode 执行器需要窗口交接（readiness `native-window-handoff-required` 表示用户正在使用 ZCode），派发给它之前先确认 readiness。
+
 ## 依据与维护
 
 - 上游事实来源：https://github.com/deepseek-ai/deepseek-harness

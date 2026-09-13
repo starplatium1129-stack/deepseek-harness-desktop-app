@@ -1,10 +1,22 @@
 const { app, BrowserWindow, WebContentsView, ipcMain, shell, dialog, safeStorage, Menu } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
+const { appendFileSync, mkdirSync } = require('node:fs');
 const { pathToFileURL } = require('node:url');
 const { RuntimeManager, redact } = require('./runtime.cjs');
 const testData = process.env.DSH_DESKTOP_TEST_DATA;
 if (testData && path.isAbsolute(testData)) app.setPath('userData', testData);
+function lifecycle(event, details = {}) {
+  try {
+    const data = app.getPath('userData'); mkdirSync(data, { recursive: true });
+    appendFileSync(path.join(data, 'desktop-lifecycle.log'), JSON.stringify({ at: new Date().toISOString(), pid: process.pid, event, ...details }) + '\n');
+  } catch { /* Diagnostics must not alter application shutdown. */ }
+}
+process.on('uncaughtExceptionMonitor', (error, origin) => lifecycle('uncaught-exception', { origin, error: redact(String(error?.stack || error)).slice(0, 5000) }));
+process.on('exit', code => lifecycle('process-exit', { code }));
+app.on('render-process-gone', (_event, _contents, details) => lifecycle('renderer-exit', { reason: details.reason, exitCode: details.exitCode }));
+app.on('child-process-gone', (_event, details) => lifecycle('child-exit', { type: details.type, reason: details.reason, exitCode: details.exitCode }));
+app.on('will-quit', () => lifecycle('will-quit'));
 app.setAppUserModelId('io.deepseekharness.desktop.community');
 const locked = app.requestSingleInstanceLock();
 if (!locked) app.quit();
@@ -41,6 +53,7 @@ async function boot() {
   finally { booting = false; }
 }
 async function main() {
+  lifecycle('started', { parentPid: process.ppid, version: app.getVersion() });
   Menu.setApplicationMenu(null);
   const data = app.getPath('userData'); await fs.mkdir(data, { recursive: true });
   const resources = app.isPackaged ? path.join(process.resourcesPath, 'runtime') : path.resolve(__dirname, '../runtime');
@@ -85,13 +98,14 @@ async function main() {
   manager.on('progress', message => publish(manager.busy ? { updateMessage: message } : { message }));
   let logQueue = Promise.resolve();
   manager.on('log', text => { logQueue = logQueue.then(() => fs.appendFile(path.join(data, 'desktop.log'), redact(text))).catch(() => {}); });
-  manager.on('crash', () => { if (!booting && !quitting) { showHome(true); publish({ phase: 'error', message: 'Harness 意外退出。你的数据已保留，可以重试启动。' }); } });
+  manager.on('crash', code => { lifecycle('harness-exit', { code, quitting }); if (!booting && !quitting) { showHome(true); publish({ phase: 'error', message: 'Harness 意外退出。你的数据已保留，可以重试启动。' }); } });
   try { await manager.init(); sync(); await boot(); }
   catch (error) { publish({ phase: 'error', message: redact(error.message) }); }
 }
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
 app.on('window-all-closed', () => app.quit());
 app.on('before-quit', event => {
+  lifecycle('before-quit', { quitting });
   if (quitting) return; event.preventDefault(); quitting = true;
   void (async () => { await manager?.stop(); app.quit(); })();
 });

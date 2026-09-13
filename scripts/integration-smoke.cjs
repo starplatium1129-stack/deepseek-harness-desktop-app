@@ -1,4 +1,5 @@
 const path = require('node:path');
+const os = require('node:os');
 const fs = require('node:fs/promises');
 const { pathToFileURL } = require('node:url');
 const assert = require('node:assert/strict');
@@ -7,14 +8,17 @@ const { redact } = require('../src/runtime.cjs');
 const root = path.resolve(__dirname, '..');
 const runtimeResources = process.env.DSH_SMOKE_RESOURCES || path.join(root, 'runtime');
 const runtimeRoot = path.join(runtimeResources, 'harness');
-const home = path.join(root, '.test-data', `integrations-${Date.now()}`);
+let home;
 const output = process.stdout.write.bind(process.stdout);
 process.stdout.write = (value, ...args) => output(redact(String(value)), ...args);
 async function main() {
-  await fs.mkdir(home, { recursive: true });
+  // The desktop stores its protected pipe descriptor under a user-owned home.
+  // A repository checkout may be on a volume that refuses Windows DACL updates.
+  home = await fs.mkdtemp(path.join(os.tmpdir(), 'dsh-integration-smoke-'));
   process.env.DSH_HOME = home; delete process.env.DEEPSEEK_API_KEY; process.chdir(home);
   const patch = await prepareIntegrationPatch(runtimeResources, runtimeRoot, home);
   assert.ok(patch, 'Desktop integrations must be packaged');
+  const { desktopBridgeStatus, descriptorPath } = require(path.join(runtimeResources, 'collaboration', 'harness-desktop-client.cjs'));
   const modules = path.join(runtimeRoot, 'node_modules/@deepseek-ai');
   const binDir = path.join(modules, 'dsh/lib');
   const bin = await fs.readFile(path.join(binDir, 'bin.js'), 'utf8');
@@ -25,6 +29,14 @@ async function main() {
   const { LlmAdapter, createUserMessage } = await import(pathToFileURL(path.join(modules, 'dsh-llm/lib/index.js')).href);
   const { ctx, shutdown } = await runProfile({ environment: loadLayeredEnv('dsh'), profile: 'web', patchFiles: [patch], args: ['--host', '127.0.0.1', '--port', '0', '--no-open'] });
   try {
+    const loader = ctx.get('loader');
+    assert.equal(typeof loader?.await, 'function', 'Native loader readiness interface must be available');
+    await loader.await();
+    const bridge = await desktopBridgeStatus(home);
+    assert.equal(bridge.available, true, bridge.reason || 'Packaged desktop collaboration bridge must be available');
+    assert.equal(bridge.pid, process.pid, 'Authenticated bridge must belong to this Web runtime');
+    assert.equal(bridge.nativeDesktop, true);
+    console.log('Packaged desktop collaboration bridge: authenticated current Web runtime.');
     let attempts = 0, observers = 0;
     class ProbeAdapter extends LlmAdapter {
       async resolveModel(provider, id) { return { provider, id, name: 'Retry probe', inputModalities: ['text'] }; }
@@ -48,6 +60,12 @@ async function main() {
       assert.match(text, /https:\/\/github.com\/deepseek-ai\/deepseek-harness/);
       console.log('Native web_search returns real citations without a DeepSeek API key.');
     }
-  } finally { await shutdown.shutdown(0); }
+  } finally {
+    await shutdown.shutdown(0);
+    const stopped = await desktopBridgeStatus(home, { connectTimeoutMs: 1000 });
+    assert.equal(stopped.available, false, 'Native shutdown must close the desktop collaboration pipe');
+    await assert.rejects(fs.access(descriptorPath(home)), { code: 'ENOENT' }, 'Native shutdown must remove its private bridge descriptor');
+    console.log('Native shutdown: desktop collaboration pipe and descriptor released.');
+  }
 }
 main().catch(error => { console.error(redact(error.message)); process.exitCode = 1; });

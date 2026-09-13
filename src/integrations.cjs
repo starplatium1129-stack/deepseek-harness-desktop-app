@@ -6,7 +6,7 @@ async function prepareIntegrationPatch(runtimeResources, runtimeRoot, home) {
   const plugin = path.join(runtimeResources, 'desktop-integrations', 'index.cjs');
   try { await fs.access(plugin); } catch (error) { if (error.code === 'ENOENT') return undefined; throw error; }
   const patch = [
-    { insert: [{ id: 'desktop-integrations', name: pathToFileURL(plugin).href, config: { runtimeRoot } }] },
+    { insert: [{ id: 'desktop-integrations', name: pathToFileURL(plugin).href, config: { runtimeRoot, harnessHome: home } }] },
     { id: 'web', config: { searchProvider: 'desktop-exa', fetchProvider: 'http' } },
   ];
   const file = path.join(home, '.desktop-integrations.json');

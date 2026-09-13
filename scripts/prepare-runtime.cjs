@@ -8,9 +8,20 @@ async function main() {
   await fs.mkdir(path.join(runtime, 'node'), { recursive: true });
   if (process.platform !== 'win32' || process.arch !== 'x64') throw new Error('Build this target on Windows x64.');
   if (process.versions.node !== '24.18.0') throw new Error('Use Node 24.18.0 for the locked Windows runtime.');
-  await fs.copyFile(process.execPath, path.join(runtime, 'node', 'node.exe'));
+  // A registered MCP service can already be using the bundled executable.
+  // Preserve identical bytes; a genuinely different locked binary still fails.
+  const sourceNode = await fs.readFile(process.execPath);
+  const nodeFile = path.join(runtime, 'node', 'node.exe');
+  const existingNode = await fs.readFile(nodeFile).catch(error => { if (error.code === 'ENOENT') return null; throw error; });
+  if (!existingNode?.equals(sourceNode)) await fs.copyFile(process.execPath, nodeFile);
   await fs.copyFile(path.join(__dirname, 'harness-launcher.cjs'), path.join(runtime, 'harness-launcher.cjs'));
   await fs.cp(path.join(root, 'integrations'), path.join(runtime, 'desktop-integrations'), { recursive: true });
+  await fs.cp(path.join(root, 'collaboration'), path.join(runtime, 'collaboration'), { recursive: true });
+  await fs.copyFile(path.join(root, 'LICENSE'), path.join(runtime, 'collaboration', 'LICENSE'));
+  await fs.mkdir(path.join(runtime, 'collaboration', 'docs'), { recursive: true });
+  for (const file of ['agent-collaboration-design.md', 'collaboration-mcp.md', 'collaboration-validation.md', 'codex-collaboration-connection.md', 'harness-collaboration.md', 'harness-desktop-bridge.md', 'zcode-protocol.md', 'zcode-renderer-protocol.md', 'zcode-verification-feedback.md', 'windows-legacy-upgrade.md', 'long-running-collaboration.md']) {
+    await fs.copyFile(path.join(root, 'docs', file), path.join(runtime, 'collaboration', 'docs', file));
+  }
   const npmPath = path.join(path.dirname(process.execPath), 'node_modules', 'npm');
   await fs.cp(npmPath, path.join(runtime, 'npm'), { recursive: true });
   const harness = path.join(runtime, 'harness');
@@ -26,7 +37,7 @@ async function main() {
   const nodeLicense = await fetch(`https://raw.githubusercontent.com/nodejs/node/v${process.versions.node}/LICENSE`);
   if (!nodeLicense.ok) throw new Error('Cannot retrieve Node license');
   await fs.writeFile(path.join(runtime, 'node', 'LICENSE'), await nodeLicense.text());
-  await fs.writeFile(path.join(runtime, 'manifest.json'), JSON.stringify({ harnessVersion: pkg.version, nodeVersion: process.versions.node, nodeSha256: crypto.createHash('sha256').update(await fs.readFile(process.execPath)).digest('hex'), platform: 'win32-x64' }, null, 2));
+  await fs.writeFile(path.join(runtime, 'manifest.json'), JSON.stringify({ harnessVersion: pkg.version, nodeVersion: process.versions.node, nodeSha256: crypto.createHash('sha256').update(sourceNode).digest('hex'), platform: 'win32-x64' }, null, 2));
   const sharp = require('sharp');
   // Preserve the supplied artwork; only produce square icon format variants.
   await sharp(path.join(root, 'assets', 'icon-source.png')).resize(512, 512, { fit: 'contain', background: '#00000000' }).png().toFile(path.join(root, 'assets', 'icon.png'));
