@@ -1,0 +1,10 @@
+html[data-scheme=light]{--focus-color:#345fd1}html[data-scheme=dark]{--focus-color:#a5c1ff}
+html[data-appearance] :is(button,input,select,textarea,summary,a,[tabindex]):focus-visible{outline:3px solid var(--focus-color)!important;outline-offset:3px}
+@media(prefers-contrast:more){html[data-appearance] :is(.pI_x6G_sidebarCol,.uV2eYG_card,[role=menu],[role=dialog],[data-glass-surface]){background:var(--dsw-alias-bg-layer-2,var(--reading-surface))!important;backdrop-filter:none!important;border:1px solid currentColor!important}}
+@media(forced-colors:active){
+  html[data-appearance],html[data-appearance] body{background:Canvas!important;color:CanvasText!important}
+  html[data-appearance] body:before,html[data-appearance] body:after{display:none!important}
+  html[data-appearance] :is(.pI_x6G_frame,.pI_x6G_sidebarCol,.hHd-Xa_root,.wSkVaW_root,.wSkVaW_scrollBody,.uV2eYG_card,[role=menu],[role=dialog],[data-glass-surface]){background:Canvas!important;color:CanvasText!important;backdrop-filter:none!important;box-shadow:none!important}
+  html[data-appearance] :is(button,input,select,textarea,summary,a,[tabindex]):focus-visible{outline-color:Highlight!important}
+  html[data-appearance] :is([role=menu],[role=dialog],button,input,select,textarea,[data-glass-surface]){border:1px solid CanvasText!important}
+}

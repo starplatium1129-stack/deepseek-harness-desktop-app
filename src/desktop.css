@@ -1,0 +1,50 @@
+/* Desktop interaction, reflow and accessibility layer. Native Windows chrome remains intact. */
+html{scroll-padding-top:70px;--focus-color:#345fd1}
+html[data-scheme=dark]{--focus-color:#a5c1ff}
+:is(button,input,select,textarea,summary,a,[tabindex]):focus-visible{outline:3px solid var(--focus-color)!important;outline-offset:3px;box-shadow:0 0 0 5px var(--surface)!important}
+button{min-height:32px}input::placeholder{color:var(--muted);opacity:1}
+.skip-link{position:fixed;top:7px;left:12px;z-index:1000;translate:0 -180%;background:var(--surface);font-size:13px}
+.skip-link:focus{translate:0 0}
+#keyboard-help{font-size:14px;font-weight:600;min-width:32px;padding:5px;border-radius:10px}
+#zoom-level{font-size:10px;min-width:43px;padding:5px}
+header{gap:16px;height:58px;flex-wrap:nowrap;min-width:0}header nav{flex-shrink:0;gap:3px}.brand{min-width:0;white-space:nowrap}.top-status{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;gap:5px}
+.top-status #status-short{overflow:hidden;text-overflow:ellipsis}
+main,.card,.usage-card,.metric,.appearance-layout>*{min-width:0}
+.card p,.hint,.status-card p,.appearance-note{font-size:12px!important;line-height:1.8}
+html[data-scheme] :is(.metric small,.usage-feedback,#usage-updated,.unit-label,.count-badge,.session-title small,.turn-meta,.turn-heading>span:not(.turn-state),.turn-buckets dt,.session-id,.usage-method,.usage-empty p,.usage-empty h3,.empty-inline,.chart-detail,.pricing-explanation,#price-basis,.price-sync-panel p,.card-label,.eyebrow){color:var(--muted)!important}
+.usage-chart svg text{fill:var(--muted)}
+.grid>.card,.usage-card,.metric:not(.metric-primary){background:var(--reading-surface)!important;backdrop-filter:none!important}
+.metric-primary{background:linear-gradient(115deg,#365bc5,#4266c5);border-color:#5073d2}
+html[data-scheme] #usage-page .metric-primary :is(span,small){color:#fff!important}
+:root[data-scheme=light] :is(.metric-cost strong,.metric-cost .text-button,.model-cost,.session-amount small,.turn-cost){color:#23764f!important}
+:root[data-scheme=dark] :is(.metric-cost strong,.metric-cost .text-button,.model-cost,.session-amount small,.turn-cost){color:#85deb3!important}
+:root[data-scheme=light] .trend-cost{color:#b52649}:root[data-scheme=light] .trend-creation{color:#925217}:root[data-scheme=light] .trend-cache{color:#7242b7}:root[data-scheme=light] .trend-input{color:#315ac4}:root[data-scheme=light] .trend-output{color:#23764f}:root[data-scheme=light] .trend-other{color:#4c5c75}
+:root[data-scheme=dark] .trend-cost{color:#ff96aa}:root[data-scheme=dark] .trend-creation{color:#edb979}:root[data-scheme=dark] .trend-cache{color:#c6a5ff}:root[data-scheme=dark] .trend-input{color:#a3beff}:root[data-scheme=dark] .trend-output{color:#7ddbad}:root[data-scheme=dark] .trend-other{color:#b8c4d7}
+.turn-state{color:#80500d}.turn-state.complete{color:#216451}
+footer{gap:12px;flex-wrap:wrap}footer>span{line-height:1.7}
+.actions,.hero-actions,.usage-toolbar,.section-heading,.session-controls{flex-wrap:wrap}
+.session-controls{display:flex;gap:8px;min-width:0;max-width:100%}
+.session-controls input{max-width:100%}
+dialog{overscroll-behavior:contain;max-height:calc(100dvh - 36px)}
+#usage-pricing-dialog{max-height:calc(100dvh - 36px);padding:24px}
+.price-sync-row{flex-wrap:wrap}.price-sync-row select{flex-basis:180px}
+.appearance-layout label{flex-wrap:wrap}.appearance-layout select{min-width:0;max-width:100%}
+.appearance-layout input[type=range]{flex:1;min-width:80px;max-width:55%}
+.appearance-heading{gap:14px;flex-wrap:wrap}.appearance-heading h1{font-size:clamp(25px,3.3vw,32px)}
+@media(max-width:1100px){.brand b,.badge{display:none!important}header{padding:0 14px;gap:12px}}
+@media(max-width:900px){.top-status{display:none}header nav{margin-right:auto}.grid,.appearance-layout{grid-template-columns:minmax(0,1fr)}main,#usage-page,#appearance-page{padding:28px 24px}.hero{height:auto;min-height:235px}.hero h1{font-size:34px}.art{width:165px;height:165px;margin:0}.art img{width:150px;height:150px}.hero-actions{margin-bottom:15px}.usage-toolbar{gap:12px}.usage-heading{flex-wrap:wrap}.usage-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.appearance-layout .card{padding:22px}.appearance-layout label{margin-top:20px}}
+@media(max-width:600px){header{padding:0 8px;gap:5px}.brand img{width:25px;height:25px}header nav{gap:0;padding:2px}header nav button{font-size:11px;padding:7px 6px}.art{display:none}.hero h1{font-size:30px}.hero p{font-size:13px}.hero{min-height:225px}.grid{gap:16px}main,#usage-page,#appearance-page{padding:22px 16px}.usage-heading h1{font-size:24px}.usage-card{padding:20px 16px}.usage-toolbar select{max-width:100%}.segmented{max-width:100%;flex-wrap:wrap}.segmented button{padding:7px 10px}.pricing-fields{grid-template-columns:minmax(0,1fr)}.turn-buckets{grid-template-columns:repeat(2,minmax(0,1fr))}.appearance-heading>button{padding:8px 12px}.appearance-layout .card{padding:20px 18px}.preset-options{gap:10px}.preset-mini{padding:8px;height:76px}.preset-option{padding:8px}.session-controls>input,.session-controls>select{width:100%;max-width:100%}#usage-pricing-dialog{padding:18px}.price-sync-row button{width:100%}}
+@media(prefers-contrast:more){:root{--glass:var(--surface);--liquid-fill:var(--surface)!important;--edge:#71819a}.card,.usage-card,.metric{border-color:var(--edge)!important}}
+@media(forced-colors:active){
+  html{--ink:CanvasText;--muted:CanvasText;--surface:Canvas;--reading-surface:Canvas}
+  html[data-scheme] #usage-page .metric-primary :is(span,small){color:CanvasText!important}
+  html,body{background:Canvas!important;color:CanvasText!important}
+  body:before,body:after,.halo,.fluid-selection{display:none!important}
+  html [data-liquid],html :is(header,.card,.usage-card,.metric,.status-card,dialog,.session-detail,.segmented,.preset-option){background:Canvas!important;color:CanvasText!important;border:1px solid CanvasText!important;backdrop-filter:none!important;box-shadow:none!important}
+  html :is(p,label,small,h1,h2,h3,span,b,strong,output,.text-button,.hint){color:CanvasText!important}
+  html button{border:1px solid ButtonText!important;background:ButtonFace!important;color:ButtonText!important}
+  html button[aria-current=page],html button[aria-pressed=true]{outline:2px solid Highlight!important;outline-offset:-3px}
+  html :is(button,input,select,summary,a,[tabindex]):focus-visible{outline:3px solid Highlight!important;box-shadow:none!important}
+  .appearance-layout input[type=checkbox]{appearance:auto!important;background:Canvas!important;width:22px;height:22px}
+  .usage-chart svg text{fill:CanvasText!important}dialog::backdrop{backdrop-filter:none!important}
+}

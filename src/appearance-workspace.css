@@ -1,0 +1,24 @@
+/* Verified against bundled Harness UI 0.1.5-rc.2. Unknown future layouts retain upstream surfaces. */
+html[data-appearance]{--desktop-glass:rgba(255,255,255,.65);--desktop-overlay:245,247,252;--desktop-blur:24px;--desktop-reading:rgba(255,255,255,.94);background:var(--wallpaper-color)}
+html[data-scheme=dark]{--desktop-glass:rgba(29,37,55,.75);--desktop-overlay:13,19,32;--desktop-reading:rgba(25,28,35,.96)}
+html[data-low-effects=true]{--desktop-blur:0px;--desktop-glass:#fff}
+html[data-low-effects=true][data-scheme=dark]{--desktop-glass:#202735}
+html[data-appearance] body{isolation:isolate;background:transparent!important}
+html[data-appearance] body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-2;background-color:var(--wallpaper-color);background-image:var(--wallpaper);background-position:center;background-size:var(--wallpaper-fit);background-repeat:no-repeat;filter:blur(var(--wallpaper-blur))}
+html[data-appearance] body:after{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;background:rgba(var(--desktop-overlay),var(--wallpaper-overlay))}
+html[data-appearance] .pI_x6G_frame,html[data-appearance] .wSkVaW_root,html[data-appearance] .wSkVaW_composerSeat{background:transparent!important}
+html[data-appearance] .wSkVaW_scrollBody:not(:has(.pXSMma_root)){background:var(--desktop-reading);border-radius:20px}
+html[data-appearance=glass] .pI_x6G_sidebarCol{background:var(--desktop-glass);backdrop-filter:blur(var(--desktop-blur)) saturate(1.35);box-shadow:inset -1px 0 #ffffff40}
+html[data-appearance=glass] .hHd-Xa_root{background:transparent}
+html[data-appearance=glass] :is(.uV2eYG_card,[role=dialog],[role=menu]){background:var(--desktop-glass)!important;backdrop-filter:blur(var(--desktop-blur)) saturate(1.35);box-shadow:inset 0 1px #ffffff60,0 12px 32px #14244c18;border:1px solid #a6b8d733;border-radius:22px}
+html[data-low-effects=true] :is(.pI_x6G_sidebarCol,.uV2eYG_card,[role=dialog],[role=menu]){backdrop-filter:none!important}
+html[data-appearance] :is(pre,[data-terminal],[data-diff]){background:var(--dsw-alias-markdown-code-block,var(--desktop-reading))}
+html[data-motion=full] button{transition:background-color 160ms ease,box-shadow 200ms ease,scale 240ms cubic-bezier(.22,1,.36,1)}
+html[data-motion=full] button:active:not(:disabled){transform:none}
+html[data-motion=full] :is([role=dialog],[role=menu]){animation:desktop-panel-in 260ms cubic-bezier(.22,1,.36,1)}
+html[data-motion=full] .pI_x6G_frame{--ds-transition-duration-slow:320ms;--ds-ease-in-out:cubic-bezier(.22,1,.36,1)}
+html[data-motion=full] .wSkVaW_root{animation:desktop-panel-in 280ms cubic-bezier(.22,1,.36,1)}
+@keyframes desktop-panel-in{from{opacity:0;transform:translateY(6px) scale(.985)}to{opacity:1;transform:none}}
+html[data-motion=reduced] *,html[data-motion=reduced] *:before,html[data-motion=reduced] *:after{transition:none!important;animation:none!important;scroll-behavior:auto!important}
+.pI_x6G_frame[data-fluid-layout]{grid-template-columns:var(--fluid-sidebar) minmax(0,1fr) var(--fluid-rightbar)!important;transition:none!important}
+.pI_x6G_frame[data-fluid-layout] .pI_x6G_handle{transition:none!important}

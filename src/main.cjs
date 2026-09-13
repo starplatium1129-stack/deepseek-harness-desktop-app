@@ -1,10 +1,16 @@
-const { app, BrowserWindow, WebContentsView, ipcMain, shell, dialog, safeStorage, Menu, Notification } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, shell, dialog, safeStorage, Menu, Notification, nativeImage, nativeTheme, screen } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const { appendFileSync, mkdirSync } = require('node:fs');
 const { pathToFileURL } = require('node:url');
 const { RuntimeManager, redact } = require('./runtime.cjs');
 const { PricingStore } = require('./pricing-store.cjs');
+const { AppearanceStore } = require('./appearance-store.cjs');
+const { AppearanceAdapter } = require('./appearance-adapter.cjs');
+const { WindowState, fitWindow, zoomSteps, shortcut } = require('./window-state.cjs');
+const appearanceAdapter = new AppearanceAdapter();
+let appearanceStore;
+let windowStore, saveWindow, zoom = 1;
 const testData = process.env.DSH_DESKTOP_TEST_DATA;
 if (testData && path.isAbsolute(testData)) app.setPath('userData', testData);
 function lifecycle(event, details = {}) {
@@ -21,15 +27,71 @@ app.on('will-quit', () => lifecycle('will-quit'));
 app.setAppUserModelId('io.deepseekharness.desktop.community');
 const locked = app.requestSingleInstanceLock();
 if (!locked) app.quit();
-let win, view, manager, quitting = false, booting = false;
+let win, view, manager, referenceWindow, navigationGeneration = 0, quitting = false, booting = false;
 let usageSessionIds = new Set();
 let status = { phase: 'starting', message: '正在准备你的工作空间…', desktopVersion: app.getVersion(), active: '', pending: '', canRollback: false, hasKey: false, showHome: true, page: 'home' };
 const localPage = pathToFileURL(path.join(__dirname, 'index.html')).href;
 const publish = patch => { Object.assign(status, patch); if (win && !win.isDestroyed()) win.webContents.send('desktop:state', status); };
-const resize = () => { if (view && win) { const [width, height] = win.getContentSize(); view.setBounds({ x: 0, y: 58, width, height: Math.max(0, height - 58) }); } };
+const chromeHeight = () => Math.round(58 * zoom);
+const resize = () => { if (view && win && !win.isDestroyed()) { const [width, height] = win.getContentSize(); view.setBounds({ x: 0, y: chromeHeight(), width, height: Math.max(0, height - chromeHeight()) }); } };
 const sync = () => publish({ active: manager?.state?.active || '', pending: manager?.state?.pending || '', canRollback: !!manager?.state?.previous });
-function showPage(page) { if (view) view.setVisible(page === 'workspace'); publish({ page, showHome: page !== 'workspace' }); }
-function showHome(show) { showPage(show ? 'home' : 'workspace'); }
+async function showPage(page, keyboard = false) {
+  const generation = ++navigationGeneration, previous = status.page;
+  try {
+    if (view && previous !== page && (previous === 'workspace' || page === 'workspace')) {
+      const from = previous === 'workspace' ? view.webContents : win.webContents;
+      const to = page === 'workspace' ? view.webContents : win.webContents;
+      const motion = await from.executeJavaScript(`document.documentElement.dataset.motion === 'full'`);
+      if (motion && generation === navigationGeneration) {
+        const [width, height] = win.getContentSize();
+        const screenshot = await from.capturePage(previous === 'workspace' ? undefined : { x: 0, y: chromeHeight(), width, height: Math.max(1, height - chromeHeight()) });
+        if (generation !== navigationGeneration) return;
+        await to.executeJavaScript(`window.FluidMotion?.snapshot(${JSON.stringify(screenshot.toDataURL())}, ${page === 'workspace' ? 0 : 58})`);
+      }
+    }
+  } catch { /* Navigation remains usable when capture/GPU presentation is unavailable. */ }
+  if (generation !== navigationGeneration || quitting) return;
+  if (view && !view.webContents.isDestroyed()) view.setVisible(page === 'workspace');
+  publish({ page, showHome: page !== 'workspace', focusRequest: keyboard ? generation : 0 });
+  if (page === 'workspace' && view && !view.webContents.isDestroyed()) view.webContents.focus();
+  else if (keyboard) win.webContents.focus();
+}
+function showHome(show) { return showPage(show ? 'home' : 'workspace'); }
+async function command(name, source = win.webContents) {
+  const modal = await source.executeJavaScript(`!!document.querySelector('dialog[open],[role="dialog"][aria-modal="true"]')`);
+  if (modal) return;
+  if (['workspace', 'usage', 'home', 'appearance'].includes(name)) {
+    if (name !== 'workspace' || status.phase === 'ready') await showPage(name, true); return;
+  }
+  if (name === 'shortcuts') {
+    await dialog.showMessageBox(win, { type: 'info', title: '键盘快捷键', message: '键盘也能完成主要操作', detail: 'Ctrl+1　工作空间\nCtrl+2　用量统计\nCtrl+3　桌面管理\nCtrl+4 / Ctrl+,　外观\nF6 / Shift+F6　导航与内容之间切换\n方向键 / Home / End　移动导航焦点；Enter 确认\nTab / Shift+Tab　下一个 / 上一个控件\nEsc　关闭弹窗\nCtrl++ / Ctrl+- / Ctrl+0　放大 / 缩小 / 恢复 100%\nF1　查看快捷键\nAlt+F4　关闭窗口', buttons: ['知道了'] }); return;
+  }
+  if (name === 'focus-cycle' || name === 'focus-content') {
+    if (status.page === 'workspace' && view) {
+      if (name === 'focus-content' || source === win.webContents) view.webContents.focus();
+      else { win.webContents.focus(); await win.webContents.executeJavaScript('window.DesktopInteraction?.focusNav()'); }
+    } else await win.webContents.executeJavaScript(`window.DesktopInteraction?.${name === 'focus-content' ? 'focusContent' : 'cycleFocus'}()`);
+    return;
+  }
+  if (name.startsWith('zoom-')) {
+    const index = zoomSteps.indexOf(zoom);
+    zoom = name === 'zoom-reset' ? 1 : zoomSteps[Math.max(0, Math.min(zoomSteps.length - 1, index + (name === 'zoom-in' ? 1 : -1)))];
+    win.webContents.setZoomFactor(zoom); if (view && !view.webContents.isDestroyed()) view.webContents.setZoomFactor(zoom); resize(); saveWindow?.();
+    publish({ zoom });
+  }
+}
+function installDesktopInput(contents) {
+  contents.on('before-input-event', (event, input) => {
+    const name = shortcut(input); if (!name) return;
+    event.preventDefault(); void command(name, contents).catch(error => lifecycle('desktop-command-error', { error: redact(error.message) }));
+  });
+  contents.on('context-menu', (_event, params) => {
+    const items = params.isEditable ? [{ role: 'undo', label: '撤销' }, { role: 'redo', label: '重做' }, { type: 'separator' }, { role: 'cut', label: '剪切' }, { role: 'copy', label: '复制' }, { role: 'paste', label: '粘贴' }, { type: 'separator' }, { role: 'selectAll', label: '全选' }] : params.selectionText ? [{ role: 'copy', label: '复制' }, { role: 'selectAll', label: '全选' }] : [];
+    const flags = { undo: 'canUndo', redo: 'canRedo', cut: 'canCut', copy: 'canCopy', paste: 'canPaste', selectAll: 'canSelectAll' };
+    for (const item of items) if (item.role) item.enabled = params.editFlags?.[flags[item.role]] !== false;
+    if (items.length) Menu.buildFromTemplate(items).popup({ window: win });
+  });
+}
 async function readKey() {
   try { const value = await fs.readFile(path.join(app.getPath('userData'), 'credential.bin')); return safeStorage.decryptString(value); }
   catch (error) { if (error.code === 'ENOENT') return ''; throw new Error('无法解密已保存的密钥，请在桌面设置中重新保存。'); }
@@ -45,14 +107,20 @@ async function boot() {
     const origin = new URL(url).origin;
     if (view) { win.contentView.removeChildView(view); view.webContents.close(); }
     view = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, partition: 'persist:harness' } });
+    view.webContents.setZoomFactor(zoom); installDesktopInput(view.webContents);
     const external = value => { try { const u = new URL(value); if (u.protocol === 'https:' || u.protocol === 'http:') void shell.openExternal(u.href); } catch {} };
     view.webContents.setWindowOpenHandler(({ url }) => { external(url); return { action: 'deny' }; });
     view.webContents.on('will-navigate', (event, destination) => { if (new URL(destination).origin !== origin) { event.preventDefault(); external(destination); } });
     view.webContents.session.setPermissionRequestHandler((_web, _permission, callback) => callback(false));
     win.contentView.addChildView(view); resize();
+    const contents = view.webContents;
+    contents.on('did-finish-load', () => {
+      contents.setZoomFactor(zoom); resize();
+      void appearanceStore.read().then(payload => appearanceAdapter.apply(contents, payload)).catch(error => publish({ appearanceError: redact(error.message) }));
+    });
     await view.webContents.loadURL(url);
     sync(); publish({ phase: 'ready', message: 'Harness 已就绪' });
-    if (status.page !== 'usage') showHome(false);
+    if (!['usage', 'appearance'].includes(status.page)) showHome(false);
   } catch (error) { showHome(true); publish({ phase: 'error', message: redact(error.message) }); }
   finally { booting = false; }
 }
@@ -61,10 +129,30 @@ async function main() {
   Menu.setApplicationMenu(null);
   const data = app.getPath('userData'); await fs.mkdir(data, { recursive: true });
   const pricing = new PricingStore(data);
+  appearanceStore = new AppearanceStore(data);
+  windowStore = new WindowState(data);
+  const displays = () => [screen.getPrimaryDisplay(), ...screen.getAllDisplays().filter(d => d.id !== screen.getPrimaryDisplay().id)];
+  const restored = fitWindow(await windowStore.read(), displays()); zoom = restored.zoom; status.zoom = zoom;
+  nativeTheme.themeSource = (await appearanceStore.read()).settings.mode;
   const resources = app.isPackaged ? path.join(process.resourcesPath, 'runtime') : path.resolve(__dirname, '../runtime');
   manager = new RuntimeManager(resources, data);
-  win = new BrowserWindow({ width: 1320, height: 880, minWidth: 880, minHeight: 650, title: 'DeepSeek Harness Desktop', backgroundColor: '#f5f7fc', icon: path.join(__dirname, '../assets/icon.ico'), show: false, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
-  win.once('ready-to-show', () => win.show()); win.on('resize', resize);
+  win = new BrowserWindow({ x: restored.x, y: restored.y, width: restored.width, height: restored.height, minWidth: restored.minWidth, minHeight: restored.minHeight, title: 'DeepSeek Harness Desktop', backgroundColor: '#f5f7fc', icon: path.join(__dirname, '../assets/icon.ico'), show: false, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  win.webContents.setZoomFactor(zoom); installDesktopInput(win.webContents);
+  win.webContents.on('did-finish-load', () => { win.webContents.setZoomFactor(zoom); resize(); });
+  let windowTimer;
+  saveWindow = () => {
+    clearTimeout(windowTimer); if (!win || win.isDestroyed()) return;
+    void windowStore.save({ ...win.getNormalBounds(), maximized: win.isMaximized(), zoom }).catch(error => lifecycle('window-state-save-error', { error: redact(error.message) }));
+  };
+  const laterSave = () => { clearTimeout(windowTimer); windowTimer = setTimeout(saveWindow, 200); };
+  for (const event of ['move', 'resize', 'maximize', 'unmaximize']) win.on(event, laterSave);
+  win.on('close', saveWindow);
+  const fitDisplay = () => { if (!win.isDestroyed() && !win.isMaximized()) { const fitted = fitWindow({ ...win.getBounds(), zoom }, displays()); win.setMinimumSize(fitted.minWidth, fitted.minHeight); win.setBounds({ x: fitted.x, y: fitted.y, width: fitted.width, height: fitted.height }); } };
+  screen.on('display-removed', fitDisplay);
+  win.on('closed', () => { clearTimeout(windowTimer); screen.removeListener('display-removed', fitDisplay); });
+  win.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#151b29' : '#f5f7fc');
+  win.once('ready-to-show', () => { if (restored.maximized) win.maximize(); win.show(); }); win.on('resize', resize);
+  win.on('closed', () => { if (referenceWindow && !referenceWindow.isDestroyed()) referenceWindow.close(); });
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e, url) => { if (url !== localPage) e.preventDefault(); });
   ipcMain.handle('desktop:state', event => { if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw new Error('Invalid caller'); return status; });
@@ -73,6 +161,28 @@ async function main() {
     try {
       if (name === 'home') { showHome(true); return; }
       if (name === 'usage') { showPage('usage'); return; }
+      if (name === 'appearance') { showPage('appearance'); return; }
+      if (['shortcuts', 'focus-content', 'zoom-in', 'zoom-out', 'zoom-reset'].includes(name)) return await command(name);
+      if (name === 'design-reference') {
+        if (referenceWindow && !referenceWindow.isDestroyed()) { referenceWindow.focus(); return; }
+        const referenceBounds = fitWindow({ ...win.getNormalBounds(), width: 1240, height: 900 }, displays());
+        referenceWindow = new BrowserWindow({ x: referenceBounds.x, y: referenceBounds.y, width: referenceBounds.width, height: referenceBounds.height, minWidth: referenceBounds.minWidth, minHeight: referenceBounds.minHeight, title: 'Fluid · 苹果设计参考', backgroundColor: '#edf3fa', webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } });
+        referenceWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+        referenceWindow.webContents.on('will-navigate', event => event.preventDefault());
+        await referenceWindow.loadFile(path.join(__dirname, 'design-reference.html')); return;
+      }
+      if (name === 'appearance-read') return await appearanceStore.read();
+      if (['appearance-save', 'appearance-import', 'appearance-reset'].includes(name)) {
+        let payload;
+        if (name === 'appearance-import') {
+          const result = await dialog.showOpenDialog(win, { title: '选择背景壁纸', properties: ['openFile'], filters: [{ name: '静态图片', extensions: ['png', 'jpg', 'jpeg', 'webp'] }] });
+          payload = result.canceled ? await appearanceStore.read() : await appearanceStore.importImage(result.filePaths[0], nativeImage);
+        } else payload = name === 'appearance-reset' ? await appearanceStore.reset() : await appearanceStore.save(value);
+        nativeTheme.themeSource = payload.settings.mode;
+        win.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#151b29' : '#f5f7fc');
+        if (view && !view.webContents.isDestroyed()) await appearanceAdapter.apply(view.webContents, payload);
+        return payload;
+      }
       if (name === 'usage-prices') return await pricing.read();
       if (name === 'usage-prices-save') return await pricing.save(value);
       if (name === 'usage-prices-sync') { await pricing.catalog.sync(true); return await pricing.read(); }
@@ -159,6 +269,7 @@ app.on('window-all-closed', () => app.quit());
 app.on('before-quit', event => {
   lifecycle('before-quit', { quitting });
   if (quitting) return; event.preventDefault(); quitting = true;
-  void (async () => { await manager?.stop(); app.quit(); })();
+  saveWindow?.();
+  void (async () => { await windowStore?.queue; await manager?.stop(); app.quit(); })();
 });
 if (locked) app.whenReady().then(main).catch(error => { dialog.showErrorBox('启动失败', redact(error.message)); app.quit(); });

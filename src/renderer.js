@@ -1,6 +1,7 @@
 const $ = id => document.getElementById(id);
 function render(s) {
   const ready = s.phase === 'ready';
+  $('zoom-level').textContent = `${Math.round((s.zoom || 1) * 100)}%`;
   $('dot').className = s.phase;
   $('status-short').textContent = ready ? '本地服务已就绪' : s.phase === 'error' ? '需要处理' : '正在启动';
   if (ready && s.completedAt) $('status-short').textContent = `最近完成 · ${new Date(s.completedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
@@ -10,8 +11,8 @@ function render(s) {
   $('version').textContent = s.active || '—'; $('desktop-version').textContent = s.desktopVersion;
   $('enter').disabled = !ready; $('workspace').disabled = !ready; $('retry').hidden = s.phase !== 'error';
   const page = s.page || (s.showHome ? 'home' : 'workspace');
-  for (const name of ['home', 'workspace', 'usage']) $(name).classList.toggle('selected', page === name);
-  $('management-page').hidden = page !== 'home'; $('usage-page').hidden = page !== 'usage';
+  for (const name of ['home', 'workspace', 'usage', 'appearance']) $(name).classList.toggle('selected', page === name);
+  DesktopInteraction.render(page, s.focusRequest);
   window.usageDashboard?.setState(s);
   $('key-state').textContent = s.hasKey ? '已加密保存' : '尚未在桌面端保存';
   if (s.keyMessage) $('key-message').textContent = s.keyMessage;
@@ -24,9 +25,9 @@ function render(s) {
 let errorTimer;
 async function action(name, value) {
   $('error').hidden = true;
-  try { const result = await window.desktop.action(name, value); if (result?.error) throw new Error(result.error); }
-  catch (error) { $('error').textContent = error.message; $('error').hidden = false; clearTimeout(errorTimer); errorTimer = setTimeout(() => $('error').hidden = true, 16000); }
+  try { const result = await window.desktop.action(name, value); if (result?.error) throw new Error(result.error); return true; }
+  catch (error) { $('error').textContent = error.message; $('error').hidden = false; clearTimeout(errorTimer); errorTimer = setTimeout(() => $('error').hidden = true, 16000); return false; }
 }
 document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => action(button.dataset.action)));
-$('save-key').addEventListener('click', async () => { const key = $('api-key').value; if (!key.trim()) return; await action('save-key', key); $('api-key').value = ''; });
+$('save-key').addEventListener('click', async () => { const key = $('api-key').value; if (!key.trim()) return; $('save-key').disabled = true; try { if (await action('save-key', key)) $('api-key').value = ''; } finally { $('save-key').disabled = false; } });
 window.desktop.onState(render); window.desktop.state().then(render);

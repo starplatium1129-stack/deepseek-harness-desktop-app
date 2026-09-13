@@ -1,0 +1,10 @@
+/* Shared material and motion contract; also loaded by the standalone design reference. */
+:root{--liquid-fill:rgba(255,255,255,.48);--liquid-stroke:rgba(255,255,255,.66);--liquid-shadow:0 10px 28px #23395814,0 2px 5px #2339580b;--liquid-inset:inset 0 1px 0 #ffffffd9,inset 0 -1px 0 #ffffff42,inset 1px 0 0 #ffffff80;--reading-surface:rgba(255,255,255,.94)}
+:root[data-scheme=dark]{--liquid-fill:rgba(24,31,48,.64);--liquid-stroke:rgba(214,232,255,.23);--liquid-shadow:0 12px 36px #02091638,0 2px 5px #02091620;--liquid-inset:inset 0 1px 0 #ffffff59,inset 0 -1px 0 #ffffff12,inset 1px 0 0 #ffffff26;--reading-surface:rgba(25,30,42,.97)}
+html[data-appearance=glass] [data-liquid]{background-color:var(--liquid-fill)!important;background-image:radial-gradient(ellipse at var(--light-x,30%) var(--light-y,0%),#ffffff21,transparent 65%)!important;border:1px solid var(--liquid-stroke)!important;box-shadow:var(--liquid-inset),var(--liquid-shadow)!important}
+.liquid-definitions{position:fixed;left:0;top:0;pointer-events:none;overflow:hidden}
+.fluid-snapshot{position:fixed;left:0;width:100%;height:auto;z-index:2147483000;pointer-events:none;transform-origin:center top;user-select:none}
+[data-fluid-press]{transform:none!important;transition-property:background-color,box-shadow,color!important}
+html[data-motion=full] button:active{transform:none!important}
+html[data-motion=full] :is(main,dialog,[role=dialog],[role=menu],.wSkVaW_root){animation:none!important}
+html[data-low-effects=true] [data-liquid]{backdrop-filter:none!important}

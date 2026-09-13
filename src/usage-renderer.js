@@ -153,9 +153,9 @@
     $('price-model').replaceChildren(...models.map(model => new Option(model, model)));
     if (options.model && models.includes(options.model)) $('price-model').value = options.model;
     $('price-save').disabled = !models.length; $('price-reset').disabled = !models.length;
-    fillPrice(); $('usage-pricing-dialog').showModal();
+    fillPrice(); FluidMotion.openDialog($('usage-pricing-dialog'), $('usage-pricing-open'));
   });
-  $('usage-pricing-close').addEventListener('click', () => $('usage-pricing-dialog').close());
+  $('usage-pricing-close').addEventListener('click', () => FluidMotion.closeDialog($('usage-pricing-dialog')));
   $('price-model').addEventListener('change', fillPrice);
   async function savePrice(reset) {
     const model = $('price-model').value; if (!model) return;
@@ -193,7 +193,7 @@
       const entered = next.page === 'usage' && state.page !== 'usage';
       const changed = next.completedAt !== state.completedAt || next.active !== state.active || next.phase !== state.phase || next.priceRevision !== state.priceRevision;
       state = next;
-      if (state.page !== 'usage') $('usage-pricing-dialog').close();
+      if (state.page !== 'usage') FluidMotion.closeDialog($('usage-pricing-dialog'), true);
       if (state.page === 'usage' && state.phase === 'ready' && (entered || changed)) { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 150); }
       if (state.page === 'usage' && state.phase !== 'ready') { error = 'Harness 当前未就绪，统计暂时无法刷新。'; feedback(); }
     },
