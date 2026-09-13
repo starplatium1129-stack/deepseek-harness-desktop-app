@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
-const { RuntimeManager, HarnessProcess, validVersion, redact, writeJson, recoverOwnedLocks, copyTree } = require('../src/runtime.cjs');
+const { RuntimeManager, HarnessProcess, validVersion, selectRelease, redact, writeJson, recoverOwnedLocks, copyTree } = require('../src/runtime.cjs');
 async function fixture(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'dsh-desktop-test-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
@@ -15,6 +15,18 @@ async function fixture(t) {
 test('rejects path traversal and malformed runtime versions', () => {
   for (const input of ['../oops', '1.0.0/../../x', 'latest', 'v1.0.0', null]) assert.equal(validVersion(input), false);
   assert.equal(validVersion('0.1.5-rc.1'), true);
+});
+test('RC installs discover the next candidate on the same release train', () => {
+  const metadata = { 'dist-tags': { latest: '0.1.5-rc.1', next: '0.1.5-rc.2' } };
+  assert.deepEqual(selectRelease(metadata, '0.1.5-rc.1'), { version: '0.1.5-rc.2', channel: 'next' });
+  assert.deepEqual(selectRelease({ 'dist-tags': { latest: '0.1.5', next: '0.1.5-rc.2' } }, '0.1.5-rc.1'), { version: '0.1.5', channel: 'latest' });
+});
+test('update discovery does not opt stable users into RC or RC users into another train', () => {
+  for (const next of ['0.1.6-rc.1', '0.1.5-alpha.9', '0.2.0-rc.1', '../bad']) {
+    assert.equal(selectRelease({ 'dist-tags': { latest: '0.1.5-rc.1', next } }, '0.1.5-rc.1').channel, 'latest');
+  }
+  assert.equal(selectRelease({ 'dist-tags': { latest: '0.1.5', next: '0.1.6-rc.1' } }, '0.1.5').channel, 'latest');
+  assert.throws(() => selectRelease({ 'dist-tags': { latest: 'invalid' } }, '0.1.5-rc.1'));
 });
 test('redacts startup authentication and common API credentials', () => {
   assert.equal(redact('dsh web: http://127.0.0.1:4000/?token=secret\nsk-secret123 Bearer abc'), 'dsh web: http://127.0.0.1:4000/[private]\n[redacted] Bearer [redacted]');

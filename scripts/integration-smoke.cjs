@@ -7,7 +7,7 @@ const { prepareIntegrationPatch } = require('../src/integrations.cjs');
 const { redact } = require('../src/runtime.cjs');
 const root = path.resolve(__dirname, '..');
 const runtimeResources = process.env.DSH_SMOKE_RESOURCES || path.join(root, 'runtime');
-const runtimeRoot = path.join(runtimeResources, 'harness');
+const runtimeRoot = process.env.DSH_SMOKE_RUNTIME_ROOT || path.join(runtimeResources, 'harness');
 let home;
 const output = process.stdout.write.bind(process.stdout);
 process.stdout.write = (value, ...args) => output(redact(String(value)), ...args);

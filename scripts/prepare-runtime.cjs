@@ -25,15 +25,22 @@ async function main() {
   const npmPath = path.join(path.dirname(process.execPath), 'node_modules', 'npm');
   await fs.cp(npmPath, path.join(runtime, 'npm'), { recursive: true });
   const harness = path.join(runtime, 'harness');
-  try { await fs.access(path.join(harness, 'node_modules', '@deepseek-ai', 'dsh', 'package.json')); }
-  catch {
+  const pinnedLock = await fs.readFile(path.join(root, 'harness-lock.json'));
+  const pinnedVersion = JSON.parse(pinnedLock).packages?.['']?.dependencies?.['@deepseek-ai/dsh'];
+  if (!require('semver').valid(pinnedVersion)) throw new Error('Harness lock must pin an exact version.');
+  let prepared = false;
+  try {
+    const installed = JSON.parse(await fs.readFile(path.join(harness, 'node_modules', '@deepseek-ai', 'dsh', 'package.json')));
+    prepared = installed.version === pinnedVersion && (await fs.readFile(path.join(harness, 'package-lock.json'))).equals(pinnedLock);
+  } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  if (!prepared) {
     await fs.mkdir(harness, { recursive: true });
-    await fs.writeFile(path.join(harness, 'package.json'), JSON.stringify({ dependencies: { '@deepseek-ai/dsh': '0.1.5-rc.1' } }));
+    await fs.writeFile(path.join(harness, 'package.json'), JSON.stringify({ dependencies: { '@deepseek-ai/dsh': pinnedVersion } }));
     await fs.copyFile(path.join(root, 'harness-lock.json'), path.join(harness, 'package-lock.json'));
     execFileSync(process.execPath, [path.join(npmPath, 'bin/npm-cli.js'), 'ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: harness, stdio: 'inherit', windowsHide: true });
   }
   const pkg = JSON.parse(await fs.readFile(path.join(runtime, 'harness', 'node_modules', '@deepseek-ai', 'dsh', 'package.json')));
-  await fs.copyFile(path.join(runtime, 'harness', 'package-lock.json'), path.join(root, 'harness-lock.json'));
+  if (pkg.version !== pinnedVersion) throw new Error('Prepared Harness version does not match the lock.');
   const nodeLicense = await fetch(`https://raw.githubusercontent.com/nodejs/node/v${process.versions.node}/LICENSE`);
   if (!nodeLicense.ok) throw new Error('Cannot retrieve Node license');
   await fs.writeFile(path.join(runtime, 'node', 'LICENSE'), await nodeLicense.text());

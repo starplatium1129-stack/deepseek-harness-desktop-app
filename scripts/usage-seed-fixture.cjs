@@ -13,7 +13,7 @@ async function main() {
   if (!path.isAbsolute(data || '') || !path.basename(data).startsWith('dsh-usage-test-')) throw Error('Fixture directory required');
   const home = path.join(data, 'harness-home'); await fs.mkdir(home, { recursive: true });
   process.env.DSH_HOME = home; delete process.env.DEEPSEEK_API_KEY; process.chdir(home);
-  const resources = path.join(root, 'runtime'), runtimeRoot = path.join(resources, 'harness');
+  const resources = path.join(root, 'runtime'), runtimeRoot = process.env.DSH_SMOKE_RUNTIME_ROOT || path.join(resources, 'harness');
   const patch = await prepareIntegrationPatch(resources, runtimeRoot, home);
   const modules = path.join(runtimeRoot, 'node_modules/@deepseek-ai');
   const binDir = path.join(modules, 'dsh/lib');

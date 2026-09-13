@@ -118,3 +118,14 @@ test('private IPC rejects promptly if Harness disconnects', async () => {
   const promise = host.readUsage(); child.emit('disconnect');
   await assert.rejects(promise, /停止/); assert.equal(child.listenerCount('message'), 0);
 });
+test('today has hourly points with conserved totals and no future hours', () => {
+  const at = hour => new Date(2026, 8, 13, hour, 0).getTime();
+  const usage = { uncachedInputTokens: 100, cacheReadTokens: 200, cacheWriteTokens: 20, outputTokens: 30, totalTokens: 350 };
+  const snapshot = { sessions: [{ id: 'hours', title: 'Hourly', turns: [9, 10].map(turn => ({ turn, model: 'test', startedAt: at(turn) - 600000, endedAt: at(turn), usage })) }] };
+  const result = build(snapshot, { days: 1, now: at(12) });
+  assert.equal(result.trend.length, 13); assert.equal(result.trend.at(-1).label, '12:00');
+  assert.equal(result.trend.reduce((sum, p) => sum + p.total, 0), 700);
+  assert.equal(result.trend[9].creation, 20); assert.equal(result.trend[9].other, 0);
+  assert.equal(build(snapshot, { days: 1, now: at(12), day: `h:${at(9)}` }).total, 350);
+  assert.equal(build(snapshot, { days: 7, now: at(12) }).trend.length, 7);
+});

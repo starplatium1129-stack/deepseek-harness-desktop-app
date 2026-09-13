@@ -27,40 +27,21 @@
     $('usage-feedback').textContent = parts.join(' · ');
     $('usage-feedback').classList.toggle('warning', !!error || !!priceError || !!priceState.sync?.lastError || !!snapshot?.unavailable || !!snapshot?.omitted || !!data?.unknown || !!data?.unpriced);
   }
+  const hiddenSeries = new Set();
   function renderChart(data) {
-    const host = $('usage-chart'); host.replaceChildren();
-    const svgNS = 'http://www.w3.org/2000/svg';
-    const svgNode = (tag, attrs = {}, text) => { const n = document.createElementNS(svgNS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); if (text !== undefined) n.textContent = text; return n; };
-    const svg = svgNode('svg', { viewBox: '0 0 680 215', role: 'group', 'aria-label': '每日消耗，按回车筛选日期' });
-    const peak = Math.max(3, ...data.daily.map(d => d.total));
-    const step = 610 / data.daily.length;
-    for (let level = 0; level <= 3; level++) {
-      const y = 175 - level * 50;
-      svg.append(svgNode('line', { x1: 55, x2: 670, y1: y, y2: y, stroke: '#edf0f7', 'stroke-dasharray': '3 5' }));
-      svg.append(svgNode('text', { x: 45, y: y + 4, 'text-anchor': 'end', fill: '#8a95aa', 'font-size': 10 }, compact(peak * level / 3)));
-    }
-    const colors = { input: '#8184df', cache: '#55bfa8', output: '#4670e7', other: '#b7c0d4' };
-    data.daily.forEach((d, index) => {
-      const x = 57 + index * step, width = Math.max(2, step * .55);
-      const label = `${d.day}，已确认 ${integer.format(d.total)} tokens，未确认 ${d.unknown} 轮`;
-      const group = svgNode('g', { tabindex: 0, role: 'button', 'aria-label': label, 'aria-pressed': options.day === d.day ? 'true' : 'false', class: 'chart-column' });
-      group.append(svgNode('title', {}, `${label}，估算成本 ${money(d)}`));
-      group.append(svgNode('rect', { x, y: 18, width: step - 1, height: 165, rx: 4, fill: options.day === d.day ? '#edf2ff' : 'transparent' }));
-      let y = 175;
-      for (const key of ['input', 'cache', 'other', 'output']) {
-        const h = d[key] / peak * 150; y -= h;
-        group.append(svgNode('rect', { x: x + (step - width) / 2, y, width, height: h, fill: colors[key], rx: 1 }));
-      }
-      if (!d.total && d.unknown) group.append(svgNode('circle', { cx: x + step / 2, cy: 170, r: 3, fill: '#ce9e57' }));
-      const select = () => { options.day = options.day === d.day ? '' : d.day; limit = 30; render(); $('usage-chart').querySelector(`[aria-label="${label}"]`)?.focus(); };
-      group.addEventListener('click', select); group.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(); } });
-      svg.append(group);
-      const every = Math.ceil(data.daily.length / 7);
-      if (index % every === 0 || index === data.daily.length - 1) svg.append(svgNode('text', { x: x + step / 2, y: 202, 'text-anchor': 'middle', fill: '#8a95aa', 'font-size': 10 }, d.day.slice(5).replace('-', '/')));
+    window.UsageChart.render($('usage-chart'), $('usage-legend'), data, {
+      hidden: hiddenSeries, selected: options.day,
+      onSelect(point) {
+        options.day = options.day === point.key ? '' : point.key; limit = 30; render();
+        $('usage-chart').querySelector(`[data-point-key="${point.key}"]`)?.focus();
+      },
+      onToggle(key) {
+        if (hiddenSeries.has(key)) hiddenSeries.delete(key); else hiddenSeries.add(key);
+        renderChart(data); $('usage-legend').querySelector(`[data-series="${key}"]`)?.focus();
+      },
     });
-    if (!data.daily.some(d => d.total || d.unknown)) svg.append(svgNode('text', { x: 360, y: 100, 'text-anchor': 'middle', fill: '#8a95aa', 'font-size': 13 }, '所选时间暂无消耗记录'));
-    host.append(svg);
-    $('usage-chart-detail').textContent = options.day ? `${options.day} · 下方总览和明细已筛选，再次点击该柱形恢复。` : '点击柱形查看当天明细；圆点表示存在未确认用量。';
+    $('usage-trend-note').textContent = data.hourly ? '当天按小时汇总 · 左轴 Token，右轴估算成本' : '按日期汇总 · 左轴 Token，右轴估算成本';
+    $('usage-chart-detail').textContent = options.day ? `${data.trend.find(p => p.key === options.day)?.title || options.day} · 已筛选明细，再次点击恢复。` : '悬停查看分项，点击筛选明细；图例可开关。未知数据保留断点，成本为参考估算。';
   }
   function renderModels(data) {
     const host = $('usage-models'); host.replaceChildren();

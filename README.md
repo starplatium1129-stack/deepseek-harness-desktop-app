@@ -6,7 +6,7 @@
 
 ## 使用
 
-当前桌面版本为 0.2.4，本地安装包为 `release/DeepSeek-Harness-Desktop-0.2.4-Setup.exe`。安装后打开桌面快捷方式；尚未发布到远程 Releases。
+当前桌面版本为 0.2.5，本地安装包为 `release/DeepSeek-Harness-Desktop-0.2.5-Setup.exe`。安装后打开桌面快捷方式；尚未发布到远程 Releases。
 
 - **工作空间**：上游原生会话、工作区、模型及插件界面。
 - **桌面管理**：服务状态、API Key 加密保存、核心版本检查、诊断日志和数据目录。

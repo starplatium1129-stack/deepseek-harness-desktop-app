@@ -9,6 +9,15 @@ const { prepareIntegrationPatch } = require('./integrations.cjs');
 const REGISTRY = 'https://registry.npmjs.org';
 const PACKAGE = '@deepseek-ai/dsh';
 function validVersion(value) { return typeof value === 'string' && semver.valid(value) === value; }
+function selectRelease(metadata, active) {
+  const latest = metadata['dist-tags']?.latest;
+  if (!validVersion(latest)) throw new Error('上游版本格式无效。');
+  const next = metadata['dist-tags']?.next;
+  const sameTrain = validVersion(active) && validVersion(next)
+    && semver.prerelease(active)?.[0] === 'rc' && semver.prerelease(next)?.[0] === 'rc'
+    && ['major', 'minor', 'patch'].every(part => semver[part](active) === semver[part](next));
+  return sameTrain && semver.gt(next, latest) ? { version: next, channel: 'next' } : { version: latest, channel: 'latest' };
+}
 function redact(value) {
   return String(value).replace(/\x1b\[[0-9;]*m/g, '').replace(/(https?:\/\/127\.0\.0\.1:\d+)[^\s]*/g, '$1/[private]')
     .replace(/sk-[a-zA-Z0-9_-]+/g, '[redacted]').replace(/(Bearer\s+)\S+/gi, '$1[redacted]');
@@ -185,12 +194,11 @@ class RuntimeManager extends EventEmitter {
     const response = await fetch(`${REGISTRY}/@deepseek-ai%2fdsh`, { signal: AbortSignal.timeout(20000) });
     if (!response.ok) throw new Error(`版本服务返回 ${response.status}`);
     const metadata = await response.json();
-    const version = metadata['dist-tags']?.latest;
-    if (!validVersion(version)) throw new Error('上游版本格式无效。');
+    const { version, channel } = selectRelease(metadata, this.state.active);
     const release = metadata.versions?.[version];
     if (!release?.dist?.integrity?.startsWith('sha512-')) throw new Error('上游包缺少 SHA-512 校验信息。');
     if (release.engines?.node && !semver.satisfies(this.seed.nodeVersion, release.engines.node)) throw new Error('新版需要更新桌面内置 Node，请等待新版桌面安装包。');
-    this.available = { version, integrity: release.dist.integrity, newer: semver.gt(version, this.state.active), published: metadata.time?.[version] };
+    this.available = { version, channel, integrity: release.dist.integrity, newer: semver.gt(version, this.state.active), published: metadata.time?.[version] };
     return this.available;
   }
   async stage() {
@@ -271,4 +279,4 @@ class RuntimeManager extends EventEmitter {
   }
   async stop() { await Promise.all([this.process?.stop(), this.probe?.stop(), stopChild(this.installer)]); }
 }
-module.exports = { HarnessProcess, RuntimeManager, validVersion, redact, writeJson, readJson, healthCheck, recoverOwnedLocks, copyTree };
+module.exports = { HarnessProcess, RuntimeManager, validVersion, selectRelease, redact, writeJson, readJson, healthCheck, recoverOwnedLocks, copyTree };

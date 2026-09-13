@@ -4,7 +4,7 @@
   const dayKey = time => { const d = new Date(time); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   function aggregate(rows) {
     const known = rows.filter(row => row.usage && number(row.usage.totalTokens));
-    const result = { total: 0, input: 0, cache: 0, output: 0, other: 0, duration: 0, known: known.length, unknown: rows.length - known.length, turns: rows.length, cacheRate: null, costUnits: '0', priced: 0, unpriced: 0 };
+    const result = { total: 0, input: 0, cache: 0, creation: 0, creationKnown: 0, output: 0, other: 0, duration: 0, known: known.length, unknown: rows.length - known.length, turns: rows.length, cacheRate: null, costUnits: '0', priced: 0, unpriced: 0 };
     let cost = 0n;
     for (const row of rows) {
       if (row.cost?.units !== null && row.cost?.units !== undefined) { cost += BigInt(row.cost.units); result.priced++; }
@@ -17,7 +17,9 @@
     for (const { usage: u } of known) {
       result.total += u.totalTokens; result.input += u.uncachedInputTokens; result.output += u.outputTokens;
       result.cache += u.cacheReadTokens ?? 0;
-      result.other += Math.max(0, u.totalTokens - u.uncachedInputTokens - u.outputTokens - (u.cacheReadTokens ?? 0));
+      result.creation += u.cacheWriteTokens ?? 0;
+      if (number(u.cacheWriteTokens)) result.creationKnown++;
+      result.other += Math.max(0, u.totalTokens - u.uncachedInputTokens - u.outputTokens - (u.cacheReadTokens ?? 0) - (u.cacheWriteTokens ?? 0));
       if (number(u.cacheReadTokens)) { prompt += u.totalTokens - u.outputTokens; cacheRead += u.cacheReadTokens; result.cacheKnown++; }
     }
     result.cacheUnknown = rows.length - result.cacheKnown;
@@ -41,7 +43,13 @@
     for (const date = new Date(start); date < end; date.setDate(date.getDate() + 1)) {
       const key = dayKey(date); daily.push({ day: key, ...aggregate(filtered.filter(row => row.day === key)) });
     }
-    const rows = filtered.filter(row => !day || row.day === day);
+    const hourly = days === 1;
+    const trend = hourly ? [] : daily.map(d => ({ ...d, key: d.day, label: d.day.slice(5).replace('-', '/'), title: d.day, granularity: 'day' }));
+    if (hourly) for (let at = start.getTime(); at < end.getTime() && at <= now; at += 3600000) {
+      const date = new Date(at), label = `${String(date.getHours()).padStart(2, '0')}:00`;
+      trend.push({ key: `h:${at}`, day: dayKey(at), label, title: `${dayKey(at)} ${label}`, granularity: 'hour', ...aggregate(filtered.filter(row => row.at >= at && row.at < at + 3600000)) });
+    }
+    const rows = filtered.filter(row => !day || (day.startsWith('h:') ? row.at >= Number(day.slice(2)) && row.at < Number(day.slice(2)) + 3600000 : row.day === day));
     const distribution = [...new Set(rows.map(row => row.model))].map(name => ({ name, ...aggregate(rows.filter(row => row.model === name)) })).sort((a, b) => b.total - a.total);
     const ids = new Set(rows.map(row => row.sessionId));
     const sessions = [...ids].map(id => {
@@ -49,7 +57,7 @@
       return { ...sessionsById.get(id), latest: turns[0].at, ...aggregate(turns), turns };
     }).filter(s => s.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
     sessions.sort(sort === 'cost' ? (a, b) => (BigInt(a.costUnits) > BigInt(b.costUnits) ? -1 : BigInt(a.costUnits) < BigInt(b.costUnits) ? 1 : b.latest - a.latest) : sort === 'tokens' ? (a, b) => b.total - a.total || b.latest - a.latest : (a, b) => b.latest - a.latest);
-    return { ...aggregate(rows), sessionCount: ids.size, sessions, daily, models, distribution, day };
+    return { ...aggregate(rows), sessionCount: ids.size, sessions, daily, trend, hourly, models, distribution, day };
   }
   const api = { build, aggregate, dayKey };
   if (typeof module === 'object' && module.exports) module.exports = api; else root.UsageModel = api;
