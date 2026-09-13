@@ -127,7 +127,7 @@
     $('usage-sessions').textContent = snapshot ? data.sessionCount : '—';
     $('usage-turn-count').textContent = `${data.turns} 轮任务 · ${data.known} 轮用量已确认`;
     $('usage-cache').textContent = snapshot && data.cacheRate !== null ? `${(data.cacheRate * 100).toFixed(1)}%` : '—';
-    $('usage-cache-note').textContent = data.cacheRate !== null ? '已确认轮次 · 缓存读取 / 总输入' : '无输入记录或缓存用量未完整上报';
+    $('usage-cache-note').textContent = data.cacheRate !== null ? `缓存读取 / 总输入 · ${data.cacheKnown}/${data.turns} 轮缓存已知${data.cacheUnknown ? '（部分）' : ''}` : '无已知缓存记录或总输入为零';
     $('usage-duration').textContent = snapshot ? duration(data.duration) : '—';
     $('usage-updated').textContent = snapshot ? `更新于 ${time(snapshot.collectedAt)}` : '尚未读取';
     const select = $('usage-model');

@@ -35,7 +35,14 @@
     if (split < 0) return exact;
     const provider = model.slice(0, split), id = model.slice(split + 3);
     const alias = { 'deepseek-official': 'deepseek', 'google-generative-ai': 'google', 'openai-codex': 'openai' }[provider];
-    return (alias && find(`${alias} / ${id}`)) || find(`* / ${id}`) || exact;
+    const direct = (alias && find(`${alias} / ${id}`)) || find(`* / ${id}`) || exact;
+    if (direct) return direct;
+    // Some Gemini routing providers encode thinking effort in the model ID.
+    // Exact variant/provider prices always win; never strip arbitrary suffixes.
+    const base = /^(gemini-\d+(?:\.\d+)?-(?:flash|pro)(?:-lite)?)-(?:minimal|low|medium|high)$/i.exec(id)?.[1];
+    if (!base) return undefined;
+    const fallback = find(`${provider} / ${base}`) || (alias && find(`${alias} / ${base}`)) || find(`* / ${base}`);
+    return fallback ? { ...fallback, basis: `${fallback.basis} · ${id} → ${base}` } : undefined;
   }
   function estimate(turn, rates) {
     const u = turn.usage;

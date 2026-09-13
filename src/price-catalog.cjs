@@ -5,6 +5,7 @@ const { validate } = require('./usage-pricing.js');
 const URL = 'https://models.dev/api.json';
 const SIX_HOURS = 6 * 60 * 60 * 1000;
 const LIMIT = 20 * 1024 * 1024;
+const IMPORTER_REVISION = 2;
 const canonicalProviders = ['openai', 'anthropic', 'google', 'deepseek', 'moonshotai', 'minimax', 'minimax-cn', 'zhipuai', 'alibaba', 'xai', 'mistral'];
 function price(value) {
   if (value === undefined || value === null) return null;
@@ -39,7 +40,9 @@ function parseModelsDev(data) {
       const key = `${providerId} / ${id}`;
       if (key.length > 160) continue;
       // Do not treat token tiers or non-token charges as a flat price.
-      if (Object.keys(cost).some(k => !['input', 'output', 'cache_read', 'cache_write', 'reasoning'].includes(k))) continue;
+      if (Object.keys(cost).some(k => !['input', 'output', 'cache_read', 'cache_write', 'reasoning', 'input_audio'].includes(k))) continue;
+      // A separate audio price is safe for the token-only fold only when equal to text input.
+      if (cost.input_audio !== undefined && cost.input_audio !== cost.input) continue;
       if (cost.reasoning !== undefined && cost.reasoning !== cost.output) continue;
       const row = entry(key, cost, `models.dev · ${providerId} 参考价`);
       rows.set(key, row);
@@ -81,6 +84,7 @@ class PriceCatalog {
         if (data.version !== 1 || !Array.isArray(data.rows) || data.rows.length > 30000) throw Error('schema');
         this.rows = data.rows.map(row => ({ ...validate([row])[0], basis: typeof row.basis === 'string' ? row.basis.slice(0, 160) : '缓存参考价' }));
         this.lastSyncAt = data.lastSyncAt; this.cachedSource = data.source; this.sourceMtime = data.sourceMtime;
+        this.importerRevision = data.importerRevision;
       } catch (e) { if (e.code !== 'ENOENT') this.lastError = '价格缓存无法读取，请重新同步。'; }
     })();
   }
@@ -93,7 +97,7 @@ class PriceCatalog {
       if (this.inflightSource === this.config.source) return this.inflight;
       await this.inflight; return this.sync(force);
     }
-    const changed = this.config.source !== this.cachedSource;
+    const changed = this.config.source !== this.cachedSource || this.importerRevision !== IMPORTER_REVISION;
     if (!force && (!this.config.auto || Date.now() - this.lastAttempt < 30000)) return this.read();
     if (!force && !changed && this.config.source === 'models.dev' && this.lastSyncAt && Date.now() - this.lastSyncAt < SIX_HOURS) return this.read();
     if (!force && this.config.source === 'models.dev' && Date.now() - this.lastAttempt < 300000) return this.read();
@@ -119,7 +123,8 @@ class PriceCatalog {
       }
       if (this.config.source !== source) return this.read();
       const lastSyncAt = Date.now();
-      await atomic(this.file, { version: 1, source, sourceMtime, lastSyncAt, rows });
+      await atomic(this.file, { version: 1, importerRevision: IMPORTER_REVISION, source, sourceMtime, lastSyncAt, rows });
+      this.importerRevision = IMPORTER_REVISION;
       this.rows = rows; this.cachedSource = source; this.sourceMtime = sourceMtime; this.lastSyncAt = lastSyncAt; this.lastError = null;
     } catch (e) {
       this.lastError = source === 'cc-switch' ? `cc-switch 价格文件暂时无法同步（${e.code || e.message}），保留上次价格。` : '在线价格同步失败，保留上次价格；可稍后重试。';

@@ -11,16 +11,17 @@
       else result.unpriced++;
     }
     result.costUnits = cost.toString();
-    let prompt = 0, cacheComplete = known.length > 0;
+    let prompt = 0, cacheRead = 0;
+    result.cacheKnown = 0; result.cacheUnknown = rows.length;
     for (const row of rows) if (number(row.durationMs)) result.duration += row.durationMs;
     for (const { usage: u } of known) {
       result.total += u.totalTokens; result.input += u.uncachedInputTokens; result.output += u.outputTokens;
       result.cache += u.cacheReadTokens ?? 0;
       result.other += Math.max(0, u.totalTokens - u.uncachedInputTokens - u.outputTokens - (u.cacheReadTokens ?? 0));
-      prompt += u.totalTokens - u.outputTokens;
-      cacheComplete &&= number(u.cacheReadTokens);
+      if (number(u.cacheReadTokens)) { prompt += u.totalTokens - u.outputTokens; cacheRead += u.cacheReadTokens; result.cacheKnown++; }
     }
-    if (cacheComplete && prompt > 0) result.cacheRate = result.cache / prompt;
+    result.cacheUnknown = rows.length - result.cacheKnown;
+    if (prompt > 0) result.cacheRate = cacheRead / prompt;
     return result;
   }
   function build(snapshot, { days = 7, model = '', search = '', sort = 'recent', day = '', now = Date.now(), rates = [] } = {}) {

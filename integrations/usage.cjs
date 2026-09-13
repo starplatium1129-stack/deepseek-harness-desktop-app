@@ -2,6 +2,16 @@ const path = require('node:path');
 const { createRequire } = require('node:module');
 const { pathToFileURL } = require('node:url');
 
+function normalizeUsageEvent(event) {
+  const u = event.data?.usage;
+  if (!u || ![u.inputTokens, u.outputTokens, u.totalTokens].every(n => Number.isSafeInteger(n) && n >= 0)) return event;
+  if ([u.cacheReadTokens, u.cacheWriteTokens].some(n => n !== undefined && (!Number.isSafeInteger(n) || n < 0))) return event;
+  const sum = u.inputTokens + u.outputTokens + (u.cacheReadTokens ?? 0) + (u.cacheWriteTokens ?? 0);
+  // pi-ai omits zero cache counters. Infer zero only if the exact total leaves no remainder.
+  if (!Number.isSafeInteger(sum) || sum !== u.totalTokens || (u.cacheReadTokens !== undefined && u.cacheWriteTokens !== undefined)) return event;
+  return { ...event, data: { ...event.data, usage: { ...u, cacheReadTokens: u.cacheReadTokens ?? 0, cacheWriteTokens: u.cacheWriteTokens ?? 0 } } };
+}
+
 // Upstream-specific adaptation stays here. No raw messages or tool output cross IPC.
 function summarizeSession(snapshot, derive, clean = value => value) {
   const events = snapshot.events.slice(snapshot.inheritedEventCount || 0);
@@ -21,7 +31,7 @@ function summarizeSession(snapshot, derive, clean = value => value) {
   function finish(turn) {
     const end = turn.events.findLast(event => event.type === 'turn/end');
     let usage;
-    try { if (end) usage = derive(turn.events); } catch { /* Unknown upstream format is not zero usage. */ }
+    try { if (end) usage = derive(turn.events.map(normalizeUsageEvent)); } catch { /* Unknown upstream format is not zero usage. */ }
     const routes = usage?.routes || [];
     return {
       turn: turn.turn, startedAt: turn.startedAt, endedAt: end?.time ?? null,
@@ -89,4 +99,4 @@ function registerUsage(ctx, config, transport = process) {
   transport.on('message', listener);
   ctx.on('dispose', () => { active?.controller.abort(); transport.removeListener('message', listener); });
 }
-module.exports = { summarizeSession, collectUsage, registerUsage };
+module.exports = { summarizeSession, collectUsage, registerUsage, normalizeUsageEvent };

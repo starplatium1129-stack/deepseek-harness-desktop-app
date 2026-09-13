@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { EventEmitter } = require('node:events');
-const { summarizeSession, collectUsage } = require('../integrations/usage.cjs');
+const { summarizeSession, collectUsage, normalizeUsageEvent } = require('../integrations/usage.cjs');
 const { redact } = require('../integrations/usage-redact.cjs');
 const { build } = require('../src/usage-model.js');
 const { HarnessProcess } = require('../src/runtime.cjs');
@@ -75,6 +75,28 @@ test('contradictory exact totals are refused by upstream rather than fabricated'
   const log = events(); log[2].data.usage.totalTokens = 10;
   const summary = summarizeSession(snap(log), await fold);
   assert.equal(summary.turns[0].usage, null);
+});
+test('omitted zero cache counters do not erase hits from later steps in the same turn', async () => {
+  const first = events(), second = events();
+  delete first[2].data.usage.cacheReadTokens; delete first[2].data.usage.cacheWriteTokens;
+  first[2].data.usage.totalTokens = 150;
+  for (const event of second) if (event.data.step) event.data = { ...event.data, step: 2 };
+  delete second[2].data.usage.cacheWriteTokens;
+  const log = [...first.slice(0, -1), ...second.slice(1)];
+  const result = summarizeSession(snap(log), await fold);
+  assert.equal(result.turns[0].usage.cacheReadTokens, 200);
+  assert.equal(result.turns[0].usage.cacheWriteTokens, 0);
+  assert.equal(result.turns[0].usage.totalTokens, 500);
+  assert.equal(first[2].data.usage.cacheReadTokens, undefined, 'Original events remain immutable');
+  assert.equal(build({ sessions: [result] }, { now: stamp }).cacheRate, .5);
+});
+test('cache rate shows coverage for known rows instead of hiding all known hits', async () => {
+  const complete = summarizeSession(snap(events()), await fold);
+  const incomplete = events(2); delete incomplete[2].data.usage.cacheReadTokens;
+  const missing = summarizeSession(snap(incomplete), await fold);
+  const result = build({ sessions: [{ ...complete, turns: [...complete.turns, ...missing.turns] }] }, { now: stamp });
+  assert.equal(result.cacheRate, 2 / 3); assert.equal(result.cacheKnown, 1); assert.equal(result.cacheUnknown, 1);
+  assert.equal(normalizeUsageEvent(incomplete[2]), incomplete[2], 'Positive unexplained remainder stays unknown');
 });
 test('titles are sanitized before entering the dashboard', async () => {
   const summary = summarizeSession(snap([...events(), { type: 'session/title', data: { title: 'key=sk-secret123 api_key=private' } }]), await fold, redact);

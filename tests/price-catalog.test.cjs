@@ -52,3 +52,18 @@ test('synchronization never overwrites a custom provider price', async () => {
   assert.equal(resolveRate(custom.model, (await store.read()).rates).input, '7');
   await store.save([]); assert.equal(resolveRate(custom.model, (await store.read()).rates).input, '2');
 });
+test('Gemini equal-price audio metadata retains official text pricing and high-effort alias', () => {
+  const rows = parseModelsDev({ google: { models: { 'gemini-3.8-flash': { modalities: { output: ['text'] }, cost: { input: .75, input_audio: .75, output: 3.75, cache_read: .075 } } } } });
+  const match = resolveRate('easycli-antigravity / gemini-3.8-flash-high', rows);
+  assert.equal(match.input, '0.75'); assert.equal(match.cacheRead, '0.075'); assert.match(match.basis, /high → gemini-3.8-flash/);
+  assert.equal(resolveRate('easycli-antigravity / gemini-3.8-flash-fast', rows), undefined);
+  const exact = { ...match, model: 'easycli-antigravity / gemini-3.8-flash-high', input: '9', basis: '自定义固定单价' };
+  assert.equal(resolveRate(exact.model, [...rows, exact]).input, '9');
+  assert.throws(() => parseModelsDev({ google: { models: { m: { cost: { input: 1, input_audio: 9, output: 2 } } } } }));
+});
+test('old importer cache forces a fresh parse without waiting six hours', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'dsh-catalog-test-')); let calls = 0;
+  await fs.writeFile(path.join(dir, 'usage-price-catalog.json'), JSON.stringify({ version: 1, source: 'models.dev', lastSyncAt: Date.now(), rows: parseModelsDev(remote(2)) }));
+  const catalog = new PriceCatalog(dir, { ccPath: path.join(dir, 'absent'), fetch: async () => { calls++; return new Response(JSON.stringify(remote(3))); } });
+  await catalog.sync(); assert.equal(calls, 1); assert.equal(resolveRate('openai / gpt-example', (await catalog.read()).rows).input, '3');
+});
