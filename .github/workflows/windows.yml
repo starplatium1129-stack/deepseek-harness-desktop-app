@@ -17,8 +17,8 @@ jobs:
           node-version: '24.18.0'
           cache: npm
       - run: npm ci
-      - run: npm test
       - run: npm run prepare:runtime
+      - run: npm test
       - run: npm run smoke
       - run: node scripts/integration-smoke.cjs --offline
       - run: npm run dist

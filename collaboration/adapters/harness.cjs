@@ -3,7 +3,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { pathToFileURL } = require('node:url');
 const { spawn } = require('node:child_process');
-const COMPATIBLE_HARNESS_VERSIONS = Object.freeze(['0.1.5-rc.1']);
+const COMPATIBLE_HARNESS_VERSIONS = Object.freeze(['0.1.5-rc.1', '0.1.5-rc.2']);
 
 function failure(code, message, state) { return Object.assign(new Error(message), { code, ...(state ? { state } : {}) }); }
 function cleanEnv(extra = {}) {

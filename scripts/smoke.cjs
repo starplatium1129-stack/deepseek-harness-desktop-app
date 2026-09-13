@@ -1,9 +1,10 @@
 const { HarnessProcess, healthCheck } = require('../src/runtime.cjs');
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const os = require('node:os');
 const root = path.resolve(__dirname, '..');
 async function main() {
-  const home = path.join(root, '.test-data', `smoke-${Date.now()}`);
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), 'dsh-startup-test-'));
   const host = new HarnessProcess(path.join(root, 'runtime/node/node.exe'), path.join(root, 'runtime/harness'), home);
   host.on('log', text => process.stdout.write(text));
   try {
