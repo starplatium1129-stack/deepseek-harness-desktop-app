@@ -1,9 +1,10 @@
-const { app, BrowserWindow, WebContentsView, ipcMain, shell, dialog, safeStorage, Menu } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, shell, dialog, safeStorage, Menu, Notification } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const { appendFileSync, mkdirSync } = require('node:fs');
 const { pathToFileURL } = require('node:url');
 const { RuntimeManager, redact } = require('./runtime.cjs');
+const { PricingStore } = require('./pricing-store.cjs');
 const testData = process.env.DSH_DESKTOP_TEST_DATA;
 if (testData && path.isAbsolute(testData)) app.setPath('userData', testData);
 function lifecycle(event, details = {}) {
@@ -21,12 +22,14 @@ app.setAppUserModelId('io.deepseekharness.desktop.community');
 const locked = app.requestSingleInstanceLock();
 if (!locked) app.quit();
 let win, view, manager, quitting = false, booting = false;
-let status = { phase: 'starting', message: '正在准备你的工作空间…', desktopVersion: app.getVersion(), active: '', pending: '', canRollback: false, hasKey: false, showHome: true };
+let usageSessionIds = new Set();
+let status = { phase: 'starting', message: '正在准备你的工作空间…', desktopVersion: app.getVersion(), active: '', pending: '', canRollback: false, hasKey: false, showHome: true, page: 'home' };
 const localPage = pathToFileURL(path.join(__dirname, 'index.html')).href;
 const publish = patch => { Object.assign(status, patch); if (win && !win.isDestroyed()) win.webContents.send('desktop:state', status); };
 const resize = () => { if (view && win) { const [width, height] = win.getContentSize(); view.setBounds({ x: 0, y: 58, width, height: Math.max(0, height - 58) }); } };
 const sync = () => publish({ active: manager?.state?.active || '', pending: manager?.state?.pending || '', canRollback: !!manager?.state?.previous });
-function showHome(show) { if (view) view.setVisible(!show); publish({ showHome: show }); }
+function showPage(page) { if (view) view.setVisible(page === 'workspace'); publish({ page, showHome: page !== 'workspace' }); }
+function showHome(show) { showPage(show ? 'home' : 'workspace'); }
 async function readKey() {
   try { const value = await fs.readFile(path.join(app.getPath('userData'), 'credential.bin')); return safeStorage.decryptString(value); }
   catch (error) { if (error.code === 'ENOENT') return ''; throw new Error('无法解密已保存的密钥，请在桌面设置中重新保存。'); }
@@ -48,7 +51,8 @@ async function boot() {
     view.webContents.session.setPermissionRequestHandler((_web, _permission, callback) => callback(false));
     win.contentView.addChildView(view); resize();
     await view.webContents.loadURL(url);
-    sync(); publish({ phase: 'ready', message: 'Harness 已就绪' }); showHome(false);
+    sync(); publish({ phase: 'ready', message: 'Harness 已就绪' });
+    if (status.page !== 'usage') showHome(false);
   } catch (error) { showHome(true); publish({ phase: 'error', message: redact(error.message) }); }
   finally { booting = false; }
 }
@@ -56,6 +60,7 @@ async function main() {
   lifecycle('started', { parentPid: process.ppid, version: app.getVersion() });
   Menu.setApplicationMenu(null);
   const data = app.getPath('userData'); await fs.mkdir(data, { recursive: true });
+  const pricing = new PricingStore(data);
   const resources = app.isPackaged ? path.join(process.resourcesPath, 'runtime') : path.resolve(__dirname, '../runtime');
   manager = new RuntimeManager(resources, data);
   win = new BrowserWindow({ width: 1320, height: 880, minWidth: 880, minHeight: 650, title: 'DeepSeek Harness Desktop', backgroundColor: '#f5f7fc', icon: path.join(__dirname, '../assets/icon.ico'), show: false, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
@@ -67,6 +72,24 @@ async function main() {
     if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw new Error('Invalid caller');
     try {
       if (name === 'home') { showHome(true); return; }
+      if (name === 'usage') { showPage('usage'); return; }
+      if (name === 'usage-prices') return await pricing.read();
+      if (name === 'usage-prices-save') return await pricing.save(value);
+      if (name === 'usage-prices-sync') { await pricing.catalog.sync(true); return await pricing.read(); }
+      if (name === 'usage-prices-config') { await pricing.catalog.configure(value); return await pricing.read(); }
+      if (name === 'usage-read') {
+        if (status.phase !== 'ready' || !manager.process) throw new Error('Harness 尚未就绪，请启动后刷新统计。');
+        const snapshot = await manager.process.readUsage();
+        if (!snapshot || !Array.isArray(snapshot.sessions)) throw new Error('用量统计返回了不兼容的数据。');
+        usageSessionIds = new Set(snapshot.sessions.map(session => session.id));
+        return snapshot;
+      }
+      if (name === 'usage-open-session') {
+        if (typeof value !== 'string' || value.length > 256 || !usageSessionIds.has(value) || status.phase !== 'ready' || !view || view.webContents.isDestroyed()) throw new Error('会话暂时无法打开，请刷新统计后重试。');
+        const opened = await view.webContents.executeJavaScript(`!window.dispatchEvent(new CustomEvent('desktop:open-session', { detail: { id: ${JSON.stringify(value)} }, cancelable: true }))`);
+        if (!opened) throw new Error('工作空间尚未就绪，或当前核心不支持打开会话。');
+        showHome(false); return;
+      }
       if (name === 'workspace') { if (status.phase === 'ready') showHome(false); return; }
       if (name === 'retry') { if (!booting && status.phase !== 'ready') await boot(); return; }
       if (name === 'check') { const result = await manager.check(); publish({ update: result, updateMessage: result.newer ? `发现上游新版本 ${result.version}` : '当前已是上游最新版本。' }); return; }
@@ -95,7 +118,36 @@ async function main() {
     } catch (error) { return { error: redact(error.message) }; }
   });
   await win.loadFile(path.join(__dirname, 'index.html'));
+  let priceStatus;
+  const syncPrices = async () => {
+    try {
+      const result = await pricing.catalog.sync();
+      const revision = JSON.stringify([result.status.lastSyncAt, result.status.lastError]);
+      if (!quitting && revision !== priceStatus) { priceStatus = revision; publish({ priceRevision: revision }); }
+    } catch { /* Price service must not affect Harness startup. */ }
+  };
+  void syncPrices();
+  const priceTimer = setInterval(syncPrices, 30000); priceTimer.unref();
+  app.once('before-quit', () => clearInterval(priceTimer));
   manager.on('progress', message => publish(manager.busy ? { updateMessage: message } : { message }));
+  const notifications = new Set();
+  manager.on('task-completed', () => {
+    if (quitting || !win || win.isDestroyed()) return;
+    publish({ completedAt: Date.now() });
+    try {
+      if (!Notification.isSupported()) return;
+      const notification = new Notification({ title: '任务已完成', body: 'Harness 已完成一轮任务，点击返回应用查看结果。', icon: path.join(__dirname, '../assets/icon.png') });
+      notifications.add(notification);
+      notification.on('close', () => notifications.delete(notification));
+      notification.on('failed', () => notifications.delete(notification));
+      notification.on('click', () => {
+        if (quitting || !win || win.isDestroyed()) return;
+        if (win.isMinimized()) win.restore();
+        win.show(); win.focus(); showHome(false);
+      });
+      notification.show();
+    } catch { /* The in-app completion message remains available. */ }
+  });
   let logQueue = Promise.resolve();
   manager.on('log', text => { logQueue = logQueue.then(() => fs.appendFile(path.join(data, 'desktop.log'), redact(text))).catch(() => {}); });
   manager.on('crash', code => { lifecycle('harness-exit', { code, quitting }); if (!booting && !quitting) { showHome(true); publish({ phase: 'error', message: 'Harness 意外退出。你的数据已保留，可以重试启动。' }); } });

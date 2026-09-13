@@ -1,0 +1,8 @@
+{
+  "name": "deepseek-harness-desktop-integrations",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.cjs",
+  "exports": { ".": "./index.cjs", "./client": "./client.js", "./package.json": "./package.json" },
+  "dsh": { "client": { "platform": "web", "inject": ["@deepseek-ai/dsh-client-ui-workspace"] } }
+}

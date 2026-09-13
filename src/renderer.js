@@ -3,12 +3,16 @@ function render(s) {
   const ready = s.phase === 'ready';
   $('dot').className = s.phase;
   $('status-short').textContent = ready ? '本地服务已就绪' : s.phase === 'error' ? '需要处理' : '正在启动';
+  if (ready && s.completedAt) $('status-short').textContent = `最近完成 · ${new Date(s.completedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
   $('status-title').textContent = ready ? '一切准备就绪' : s.phase === 'error' ? '启动遇到问题' : '正在准备你的工作空间';
   $('symbol').textContent = ready ? '✓' : s.phase === 'error' ? '!' : '◌';
   $('message').textContent = s.message;
   $('version').textContent = s.active || '—'; $('desktop-version').textContent = s.desktopVersion;
   $('enter').disabled = !ready; $('workspace').disabled = !ready; $('retry').hidden = s.phase !== 'error';
-  $('home').classList.toggle('selected', s.showHome); $('workspace').classList.toggle('selected', !s.showHome);
+  const page = s.page || (s.showHome ? 'home' : 'workspace');
+  for (const name of ['home', 'workspace', 'usage']) $(name).classList.toggle('selected', page === name);
+  $('management-page').hidden = page !== 'home'; $('usage-page').hidden = page !== 'usage';
+  window.usageDashboard?.setState(s);
   $('key-state').textContent = s.hasKey ? '已加密保存' : '尚未在桌面端保存';
   if (s.keyMessage) $('key-message').textContent = s.keyMessage;
   if (s.updateMessage) $('update-message').textContent = s.updateMessage;

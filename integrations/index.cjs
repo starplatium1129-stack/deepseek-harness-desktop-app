@@ -1,4 +1,6 @@
 const { retryRegionStream } = require('./region-retry.cjs');
+const { registerTaskNotifications } = require('./task-notifications.cjs');
+const { registerUsage } = require('./usage.cjs');
 const { ExaSearchProvider } = require('./exa-search.cjs');
 const { AsyncLocalStorage } = require('node:async_hooks');
 const path = require('node:path');
@@ -11,9 +13,11 @@ exports.name = 'desktop-integrations';
 // Loader tracks this parent entry, not arbitrary child-plugin initialization.
 // Require the child's services before applying, then await its native Fiber so
 // parent readiness also means the private pipe and descriptor are published.
-exports.inject = [...new Set(['llm', 'web', ...(bridgePlugin?.inject || [])])];
+exports.inject = [...new Set(['llm', 'web', 'sessionQuery', ...(bridgePlugin?.inject || [])])];
 exports.apply = async (ctx, config) => {
   if (typeof config?.runtimeRoot !== 'string') throw new Error('Desktop runtime path is missing.');
+  registerTaskNotifications(ctx);
+  registerUsage(ctx, config);
   ctx.web.registerSearchProvider(new ExaSearchProvider(config.runtimeRoot));
   const harnessHome = config.harnessHome || process.env.DSH_HOME;
   if (typeof harnessHome === 'string' && path.isAbsolute(harnessHome) && bridgePlugin) {

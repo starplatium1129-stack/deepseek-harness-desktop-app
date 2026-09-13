@@ -100,6 +100,9 @@ class HarnessProcess extends EventEmitter {
       env: cleanEnv({ ...this.extraEnv, DSH_HOME: this.home, PATH: `${path.dirname(this.node)}${path.delimiter}${process.env.PATH || ''}` }),
     });
     if (child.pid) writeFileSync(path.join(this.home, '.desktop-owner.json'), JSON.stringify({ pid: child.pid }));
+    child.on('message', message => {
+      if (!this.stopping && this.child === child && message?.type === 'desktop:task-completed') this.emit('task-completed');
+    });
     try {
       return await new Promise((resolve, reject) => {
         let buffer = '', tail = '', settled = false;
@@ -125,6 +128,30 @@ class HarnessProcess extends EventEmitter {
         child.stdout.on('data', c => output(c, true)); child.stderr.on('data', c => output(c, false));
       });
     } catch (error) { await this.stop(); throw error; }
+  }
+  readUsage() {
+    if (this.usageRequest) return this.usageRequest;
+    const child = this.child;
+    if (!child?.connected || this.stopping) return Promise.reject(new Error('Harness 尚未就绪，请稍后重试。'));
+    const id = require('node:crypto').randomUUID();
+    this.usageRequest = new Promise((resolve, reject) => {
+      const finish = (error, snapshot) => {
+        clearTimeout(timer); child.removeListener('message', onMessage); child.removeListener('exit', onExit); child.removeListener('disconnect', onExit);
+        error ? reject(error) : resolve(snapshot);
+      };
+      const onMessage = message => {
+        if (message?.type === 'desktop:usage-result' && message.id === id) finish(message.error ? new Error(message.error) : null, message.snapshot);
+      };
+      const onExit = () => finish(new Error('Harness 已停止，暂时无法刷新统计。'));
+      const timer = setTimeout(() => {
+        if (child.connected) { try { child.send({ type: 'desktop:usage-cancel', id }, () => {}); } catch {} }
+        finish(new Error('统计读取超时，请稍后重试。'));
+      }, 60000);
+      child.on('message', onMessage); child.once('exit', onExit); child.once('disconnect', onExit);
+      try { child.send({ type: 'desktop:usage-query', id }, error => { if (error) finish(new Error('无法连接用量统计服务。')); }); }
+      catch { finish(new Error('无法连接用量统计服务。')); }
+    }).finally(() => { this.usageRequest = null; });
+    return this.usageRequest;
   }
   async stop() { this.stopping = true; await stopChild(this.child); this.child = null; }
 }
@@ -230,6 +257,7 @@ class RuntimeManager extends EventEmitter {
   async launch(extraEnv) {
     this.process = new HarnessProcess(this.node, this.root(this.state.active), this.home, extraEnv);
     this.process.on('log', text => this.emit('log', text)); this.process.on('crash', code => this.emit('crash', code));
+    this.process.on('task-completed', () => this.emit('task-completed'));
     const url = await this.process.start();
     try { await healthCheck(url); return url; } catch (error) { await this.process.stop(); throw error; }
   }
