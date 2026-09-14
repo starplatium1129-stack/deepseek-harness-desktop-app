@@ -6,7 +6,9 @@
 
 ## 使用
 
-当前桌面版本为 **0.4.0 预览测试版**，内置 Harness 0.1.5-rc.2。[下载 Windows x64 安装包、设计参考包及校验文件](https://github.com/starplatium1129-stack/deepseek-harness-desktop-app/releases/tag/v0.4.0)，安装后打开桌面快捷方式。安装包未签名，尚未完成无开发环境的全新 Windows 验收，暂不作为稳定版发布。
+当前桌面版本为 **0.4.3 最终社区版**，内置 Harness 0.1.5-rc.2。[下载 Windows x64 安装包及校验文件](https://github.com/starplatium1129-stack/deepseek-harness-desktop-app/releases/tag/v0.4.3)，安装后打开桌面快捷方式。安装包未签名，尚未完成无开发环境的全新 Windows 验收，请结合下方验收边界使用。
+
+本项目已暂停独立维护，不再计划跟随上游持续发布桌面壳更新。后续如需长期使用或获得新功能，请优先等待并使用 DeepSeek 官方桌面版；本仓库保留 0.4.3 作为最终社区版本和可追溯源码。
 
 - **工作空间**：上游原生会话、工作区、模型及插件界面。
 - **桌面管理**：服务状态、API Key 加密保存、核心版本检查、诊断日志和数据目录。
@@ -25,7 +27,7 @@
 - **可读性与键盘操作**：焦点恢复、Esc 关闭、保存失败保留输入，适配强制颜色与系统减少动态效果。
 - **独立设计参考**：「外观 → 打开交互设计参考」。Release 中的参考包解压后可用 Chrome / Edge 打开 `index.html`，包含演示、共享源码及桌面交互示例，供其他项目复用。
 
-说明与边界见 [外观设置](docs/appearance.md)、[设计实现](docs/apple-design-reference.md)、[桌面交互](docs/desktop-interaction.md) 和 [0.4.0 发布说明](docs/releases/0.4.0.md)。升级前请结束当前任务并退出旧版，再运行安装包。
+说明与边界见 [外观设置](docs/appearance.md)、[设计实现](docs/apple-design-reference.md)、[桌面交互](docs/desktop-interaction.md) 和 [0.4.3 发布说明](docs/releases/0.4.3.md)。升级前请结束当前任务并退出旧版，再运行安装包。
 
 通用验收依据见 [Apple HIG Web 设计规范](docs/design/apple-hig-web-guidelines.md)，本轮源码核查见 [2026-09-14 设计审查](docs/design/apple-hig-audit-2026-09-14.md)。审查区分已有实现、确定缺口与未执行的实机验证；规范入库不表示运行时已经全面达标，也不要求移植 HUIYU 的品牌或主题约束。
 
