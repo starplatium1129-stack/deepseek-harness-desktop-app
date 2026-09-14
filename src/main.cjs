@@ -6,10 +6,30 @@ const { pathToFileURL } = require('node:url');
 const { RuntimeManager, redact } = require('./runtime.cjs');
 const { PricingStore } = require('./pricing-store.cjs');
 const { AppearanceStore } = require('./appearance-store.cjs');
-const { AppearanceAdapter } = require('./appearance-adapter.cjs');
+const { AppearanceAdapter, acceptsThemeEvent } = require('./appearance-adapter.cjs');
 const { WindowState, fitWindow, zoomSteps, shortcut } = require('./window-state.cjs');
+const { commitNavigation } = require('./navigation.cjs');
 const appearanceAdapter = new AppearanceAdapter();
 let appearanceStore;
+let appearanceQueue = Promise.resolve(), appearanceRevision = 0, workspaceOrigin;
+function queueAppearance(operation) {
+  const next = appearanceQueue.then(operation); appearanceQueue = next.catch(() => {}); return next;
+}
+async function readAppearance() { return { ...await appearanceStore.read(), revision: appearanceRevision }; }
+function changeAppearance(operation, source = 'desktop') {
+  return queueAppearance(async () => {
+    const payload = { ...await operation(), revision: ++appearanceRevision, source };
+    nativeTheme.themeSource = payload.settings.mode;
+    if (win && !win.isDestroyed()) {
+      win.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#151b29' : '#f5f7fc');
+      win.webContents.send('desktop:appearance', payload);
+    }
+    // The workspace has already applied its own choice. Echoing it back calls
+    // setTheme again and can supersede a newer in-flight choice in the upstream scope.
+    if (source !== 'workspace' && view && !view.webContents.isDestroyed()) await appearanceAdapter.apply(view.webContents, payload);
+    return payload;
+  });
+}
 let windowStore, saveWindow, zoom = 1;
 const testData = process.env.DSH_DESKTOP_TEST_DATA;
 if (testData && path.isAbsolute(testData)) app.setPath('userData', testData);
@@ -37,24 +57,10 @@ const resize = () => { if (view && win && !win.isDestroyed()) { const [width, he
 const sync = () => publish({ active: manager?.state?.active || '', pending: manager?.state?.pending || '', canRollback: !!manager?.state?.previous });
 async function showPage(page, keyboard = false) {
   const generation = ++navigationGeneration, previous = status.page;
-  try {
-    if (view && previous !== page && (previous === 'workspace' || page === 'workspace')) {
-      const from = previous === 'workspace' ? view.webContents : win.webContents;
-      const to = page === 'workspace' ? view.webContents : win.webContents;
-      const motion = await from.executeJavaScript(`document.documentElement.dataset.motion === 'full'`);
-      if (motion && generation === navigationGeneration) {
-        const [width, height] = win.getContentSize();
-        const screenshot = await from.capturePage(previous === 'workspace' ? undefined : { x: 0, y: chromeHeight(), width, height: Math.max(1, height - chromeHeight()) });
-        if (generation !== navigationGeneration) return;
-        await to.executeJavaScript(`window.FluidMotion?.snapshot(${JSON.stringify(screenshot.toDataURL())}, ${page === 'workspace' ? 0 : 58})`);
-      }
-    }
-  } catch { /* Navigation remains usable when capture/GPU presentation is unavailable. */ }
-  if (generation !== navigationGeneration || quitting) return;
-  if (view && !view.webContents.isDestroyed()) view.setVisible(page === 'workspace');
-  publish({ page, showHome: page !== 'workspace', focusRequest: keyboard ? generation : 0 });
-  if (page === 'workspace' && view && !view.webContents.isDestroyed()) view.webContents.focus();
-  else if (keyboard) win.webContents.focus();
+  if (quitting) return;
+  // A hidden WebContentsView is throttled in normal Electron launches. Never
+  // wait for its image decode, capture, JavaScript or animation before showing it.
+  commitNavigation({ page, previous, keyboard, generation, view, win, publish });
 }
 function showHome(show) { return showPage(show ? 'home' : 'workspace'); }
 async function command(name, source = win.webContents) {
@@ -105,20 +111,26 @@ async function boot() {
     const url = await manager.start(key ? { DEEPSEEK_API_KEY: key } : {});
     if (quitting) return;
     const origin = new URL(url).origin;
+    workspaceOrigin = origin;
     if (view) { win.contentView.removeChildView(view); view.webContents.close(); }
-    view = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, partition: 'persist:harness' } });
+    view = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'workspace-preload.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false, partition: 'persist:harness' } });
     view.webContents.setZoomFactor(zoom); installDesktopInput(view.webContents);
     const external = value => { try { const u = new URL(value); if (u.protocol === 'https:' || u.protocol === 'http:') void shell.openExternal(u.href); } catch {} };
     view.webContents.setWindowOpenHandler(({ url }) => { external(url); return { action: 'deny' }; });
     view.webContents.on('will-navigate', (event, destination) => { if (new URL(destination).origin !== origin) { event.preventDefault(); external(destination); } });
     view.webContents.session.setPermissionRequestHandler((_web, _permission, callback) => callback(false));
-    win.contentView.addChildView(view); resize();
+    win.contentView.addChildView(view); view.setVisible(status.page === 'workspace'); resize();
     const contents = view.webContents;
-    contents.on('did-finish-load', () => {
+    let finishAppearance;
+    const appearanceReady = new Promise(resolve => { finishAppearance = resolve; });
+    contents.once('did-finish-load', () => {
       contents.setZoomFactor(zoom); resize();
-      void appearanceStore.read().then(payload => appearanceAdapter.apply(contents, payload)).catch(error => publish({ appearanceError: redact(error.message) }));
+      void queueAppearance(async () => appearanceAdapter.apply(contents, await readAppearance()))
+        .catch(error => publish({ appearanceError: redact(error.message) }))
+        .finally(finishAppearance);
     });
     await view.webContents.loadURL(url);
+    await appearanceReady;
     sync(); publish({ phase: 'ready', message: 'Harness 已就绪' });
     if (!['usage', 'appearance'].includes(status.page)) showHome(false);
   } catch (error) { showHome(true); publish({ phase: 'error', message: redact(error.message) }); }
@@ -156,6 +168,10 @@ async function main() {
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e, url) => { if (url !== localPage) e.preventDefault(); });
   ipcMain.handle('desktop:state', event => { if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw new Error('Invalid caller'); return status; });
+  ipcMain.on('desktop:workspace-theme', (event, mode) => {
+    if (!acceptsThemeEvent(event, view?.webContents, workspaceOrigin, mode)) return;
+    void changeAppearance(() => appearanceStore.save({ mode }), 'workspace').catch(error => publish({ appearanceError: redact(error.message) }));
+  });
   ipcMain.handle('desktop:action', async (event, name, value) => {
     if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw new Error('Invalid caller');
     try {
@@ -171,17 +187,13 @@ async function main() {
         referenceWindow.webContents.on('will-navigate', event => event.preventDefault());
         await referenceWindow.loadFile(path.join(__dirname, 'design-reference.html')); return;
       }
-      if (name === 'appearance-read') return await appearanceStore.read();
+      if (name === 'appearance-read') return await queueAppearance(readAppearance);
       if (['appearance-save', 'appearance-import', 'appearance-reset'].includes(name)) {
-        let payload;
         if (name === 'appearance-import') {
           const result = await dialog.showOpenDialog(win, { title: '选择背景壁纸', properties: ['openFile'], filters: [{ name: '静态图片', extensions: ['png', 'jpg', 'jpeg', 'webp'] }] });
-          payload = result.canceled ? await appearanceStore.read() : await appearanceStore.importImage(result.filePaths[0], nativeImage);
-        } else payload = name === 'appearance-reset' ? await appearanceStore.reset() : await appearanceStore.save(value);
-        nativeTheme.themeSource = payload.settings.mode;
-        win.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#151b29' : '#f5f7fc');
-        if (view && !view.webContents.isDestroyed()) await appearanceAdapter.apply(view.webContents, payload);
-        return payload;
+          return result.canceled ? await queueAppearance(readAppearance) : await changeAppearance(() => appearanceStore.importImage(result.filePaths[0], nativeImage));
+        }
+        return await changeAppearance(() => name === 'appearance-reset' ? appearanceStore.reset() : appearanceStore.save(value));
       }
       if (name === 'usage-prices') return await pricing.read();
       if (name === 'usage-prices-save') return await pricing.save(value);
@@ -270,6 +282,6 @@ app.on('before-quit', event => {
   lifecycle('before-quit', { quitting });
   if (quitting) return; event.preventDefault(); quitting = true;
   saveWindow?.();
-  void (async () => { await windowStore?.queue; await manager?.stop(); app.quit(); })();
+  void (async () => { await windowStore?.queue; await appearanceQueue; await manager?.stop(); app.quit(); })();
 });
 if (locked) app.whenReady().then(main).catch(error => { dialog.showErrorBox('启动失败', redact(error.message)); app.quit(); });

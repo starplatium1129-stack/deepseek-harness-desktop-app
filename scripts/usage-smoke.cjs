@@ -48,6 +48,7 @@ async function main() {
     }
     await page.screenshot({ path: path.join(screenshots, 'usage-pricing.png'), fullPage: true });
     await page.locator('#usage-pricing-close').click();
+    await page.locator('#usage-pricing-dialog').waitFor({ state: 'hidden' });
     assert.equal(await page.locator('#usage-cost').innerText(), '$0.050400');
     const storedPrices = JSON.parse(await fs.readFile(path.join(data, 'usage-prices.json'), 'utf8'));
     assert.equal(storedPrices.overrides.length, 2);

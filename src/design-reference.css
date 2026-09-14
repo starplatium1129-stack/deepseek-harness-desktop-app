@@ -4,3 +4,12 @@
 @media(max-width:980px){.wordmark span{display:none}h1{font-size:37px}.motion-main{padding:32px}.motion-main h2{font-size:24px}.stage-type{font-size:82px}.notes{gap:20px}}
 
 #reference-panels{position:relative;isolation:isolate}.reference-departing{position:absolute;inset:0 0 auto;z-index:-1;pointer-events:none}
+:root[data-scheme=dark] .lens-stage{background:linear-gradient(135deg,#0c131f 0%,#182338 50%,#121929 100%);border:1px solid rgba(255,255,255,.1)}
+:root[data-scheme=dark] .orb-blue{background:radial-gradient(circle at 65% 65%,#1d436c,#265588 49%,#2d67a4 52%,#3b7ec4 54%,#1d4670 56%,#10284499 60%,transparent 65%)}
+:root[data-scheme=dark] .orb-peach{background:radial-gradient(circle at 40% 40%,#4a2a3b 24%,#5e2d3e 50%,#7a384f 53%,#522941 56%,#331f47 59%,#1b273d 64%)}
+:root[data-scheme=dark] .stage-grid{background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px)}
+:root[data-scheme=dark] .stage-type{color:rgba(255,255,255,.08)}
+:root[data-scheme=dark] .stage-caption{color:#8ea3c4}
+:root[data-scheme=dark] .material-tag{color:#768ba8}
+:root[data-scheme=dark] #reference-lens{color:#f0f4fc;--liquid-fill:rgba(255,255,255,.06);--liquid-stroke:rgba(255,255,255,.14);--liquid-shadow:0 18px 40px rgba(0,0,0,.6),0 3px 8px rgba(0,0,0,.35)}
+:root[data-scheme=dark] #reference-lens small{color:#9cb0cc}

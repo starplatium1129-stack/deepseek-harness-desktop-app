@@ -1,17 +1,23 @@
 /* Verified against bundled Harness UI 0.1.5-rc.2. Unknown future layouts retain upstream surfaces. */
-html[data-appearance]{--desktop-glass:rgba(255,255,255,.65);--desktop-overlay:245,247,252;--desktop-blur:24px;--desktop-reading:rgba(255,255,255,.94);background:var(--wallpaper-color)}
-html[data-scheme=dark]{--desktop-glass:rgba(29,37,55,.75);--desktop-overlay:13,19,32;--desktop-reading:rgba(25,28,35,.96)}
+html[data-appearance]{--desktop-glass:rgba(255,255,255,.65);--desktop-overlay:244,244,246;--desktop-blur:24px;--desktop-reading:rgba(255,255,255,.94);--desktop-sidebar-edge:#ffffff40;--desktop-card-rim:#ffffff60;--desktop-card-shadow:0 12px 32px #14244c18;--desktop-card-stroke:#a6b8d733;background:var(--wallpaper-color)}
+html[data-scheme=dark]{--desktop-glass:rgba(15,20,30,.42);--desktop-overlay:27,27,29;--desktop-reading:rgba(21,25,34,.96);--desktop-sidebar-edge:rgba(255,255,255,.08);--desktop-card-rim:rgba(255,255,255,.12);--desktop-card-shadow:0 14px 36px rgba(0,0,0,.45);--desktop-card-stroke:rgba(255,255,255,.08)}
 html[data-low-effects=true]{--desktop-blur:0px;--desktop-glass:#fff}
 html[data-low-effects=true][data-scheme=dark]{--desktop-glass:#202735}
 html[data-appearance] body{isolation:isolate;background:transparent!important}
 html[data-appearance] body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-2;background-color:var(--wallpaper-color);background-image:var(--wallpaper);background-position:center;background-size:var(--wallpaper-fit);background-repeat:no-repeat;filter:blur(var(--wallpaper-blur))}
 html[data-appearance] body:after{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;background:rgba(var(--desktop-overlay),var(--wallpaper-overlay))}
 html[data-appearance] .pI_x6G_frame,html[data-appearance] .wSkVaW_root,html[data-appearance] .wSkVaW_composerSeat{background:transparent!important}
-html[data-appearance] .wSkVaW_scrollBody:not(:has(.pXSMma_root)){background:var(--desktop-reading);border-radius:20px}
-html[data-appearance=glass] .pI_x6G_sidebarCol{background:var(--desktop-glass);backdrop-filter:blur(var(--desktop-blur)) saturate(1.35);box-shadow:inset -1px 0 #ffffff40}
-html[data-appearance=glass] .hHd-Xa_root{background:transparent}
-html[data-appearance=glass] :is(.uV2eYG_card,[role=dialog],[role=menu]){background:var(--desktop-glass)!important;backdrop-filter:blur(var(--desktop-blur)) saturate(1.35);box-shadow:inset 0 1px #ffffff60,0 12px 32px #14244c18;border:1px solid #a6b8d733;border-radius:22px}
-html[data-low-effects=true] :is(.pI_x6G_sidebarCol,.uV2eYG_card,[role=dialog],[role=menu]){backdrop-filter:none!important}
+html[data-appearance] .wSkVaW_scrollBody:not(:has(.pXSMma_root)){background:transparent!important;border-radius:0!important}
+/* Filters on a layout ancestor establish a containing block for fixed descendants.
+   Settings is rendered inside the sidebar, so only its child paint layer may filter. */
+.pI_x6G_sidebarCol{position:relative}
+.desktop-sidebar-material{display:none;position:absolute;inset:0;pointer-events:none;border-radius:inherit}
+html[data-appearance=glass] .pI_x6G_sidebarCol{background:transparent;backdrop-filter:none!important;box-shadow:none}
+html[data-appearance=glass] .desktop-sidebar-material{display:block;background:var(--desktop-glass);backdrop-filter:blur(var(--desktop-blur)) saturate(1.35);box-shadow:inset -1px 0 var(--desktop-sidebar-edge)}
+html[data-appearance=glass] .bhn1Oq_fade{display:none!important}
+html[data-appearance=glass] .hHd-Xa_root{background:transparent;position:relative}
+html[data-appearance=glass] :is(.uV2eYG_card,[role=dialog],[role=menu]){background:var(--desktop-glass)!important;backdrop-filter:blur(var(--desktop-blur)) saturate(1.35);box-shadow:inset 0 1px var(--desktop-card-rim),var(--desktop-card-shadow);border:1px solid var(--desktop-card-stroke);border-radius:22px}
+html[data-low-effects=true] :is(.desktop-sidebar-material,.uV2eYG_card,[role=dialog],[role=menu]){backdrop-filter:none!important}
 html[data-appearance] :is(pre,[data-terminal],[data-diff]){background:var(--dsw-alias-markdown-code-block,var(--desktop-reading))}
 html[data-motion=full] button{transition:background-color 160ms ease,box-shadow 200ms ease,scale 240ms cubic-bezier(.22,1,.36,1)}
 html[data-motion=full] button:active:not(:disabled){transform:none}
@@ -22,3 +28,11 @@ html[data-motion=full] .wSkVaW_root{animation:desktop-panel-in 280ms cubic-bezie
 html[data-motion=reduced] *,html[data-motion=reduced] *:before,html[data-motion=reduced] *:after{transition:none!important;animation:none!important;scroll-behavior:auto!important}
 .pI_x6G_frame[data-fluid-layout]{grid-template-columns:var(--fluid-sidebar) minmax(0,1fr) var(--fluid-rightbar)!important;transition:none!important}
 .pI_x6G_frame[data-fluid-layout] .pI_x6G_handle{transition:none!important}
+
+/* Fluid Process Timeline: 简洁有序的思考与工具调用胶囊 */
+html[data-appearance] .EvIC1a_column > [data-turn-process-member]{margin-top:6px!important;position:relative}
+html[data-appearance] .EvIC1a_column > [data-turn-process-member]:not(:first-child)::before{content:"";position:absolute;left:8px;top:-6px;bottom:calc(100% - 2px);width:1.5px;background:var(--dsw-alias-border-l2);opacity:.45}
+html[data-appearance] :is(.lcKema_row,._5OnbHa_row,.o3BgMG_row,.CY-8Ka_root,.iWrAna_row){border-radius:10px;padding:3px 8px 3px 6px!important;margin:1px 0!important;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2,transparent) 45%,transparent);border:1px solid color-mix(in srgb,var(--dsw-alias-border-l1,transparent) 35%,transparent);transition:background-color 150ms ease,border-color 150ms ease}
+html[data-appearance] :is(.lcKema_row,._5OnbHa_row,.o3BgMG_row,.CY-8Ka_root,.iWrAna_row):hover{background:color-mix(in srgb,var(--dsw-alias-interactive-bg-hover) 75%,transparent);border-color:color-mix(in srgb,var(--dsw-alias-border-l2) 75%,transparent)}
+html[data-appearance] [data-state=running] :is(.lcKema_row,._5OnbHa_row,.o3BgMG_row,.CY-8Ka_root,.iWrAna_row){border-color:var(--dsw-static-deepseek-500,#4d6ee3);box-shadow:0 0 10px color-mix(in srgb,var(--dsw-static-deepseek-500,#4d6ee3) 25%,transparent)}
+html[data-appearance] :is(._5OnbHa_body,.CY-8Ka_ioCard,.iWrAna_instructionsCard,.lcKema_thinkBody){border-radius:12px!important;border-color:color-mix(in srgb,var(--dsw-alias-border-l1) 60%,transparent)!important;background:color-mix(in srgb,var(--dsw-alias-markdown-code-block) 70%,transparent)!important;backdrop-filter:blur(8px)}

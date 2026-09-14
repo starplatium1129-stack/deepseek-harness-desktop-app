@@ -3,4 +3,5 @@ contextBridge.exposeInMainWorld('desktop', {
   state: () => ipcRenderer.invoke('desktop:state'),
   action: (name, value) => ipcRenderer.invoke('desktop:action', name, value),
   onState: callback => { const listener = (_, state) => callback(state); ipcRenderer.on('desktop:state', listener); return () => ipcRenderer.removeListener('desktop:state', listener); },
+  onAppearance: callback => { const listener = (_, payload) => callback(payload); ipcRenderer.on('desktop:appearance', listener); return () => ipcRenderer.removeListener('desktop:appearance', listener); },
 });

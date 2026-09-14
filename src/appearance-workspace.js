@@ -2,7 +2,7 @@
 (() => {
   if (window.__fluidWorkspace) return; window.__fluidWorkspace = true;
   FluidMotion.install();
-  LiquidGlass.install({ selector: '.pI_x6G_sidebarCol,.uV2eYG_card,[role="dialog"],[role="menu"]' });
+  LiquidGlass.install({ selector: '.desktop-sidebar-material,.uV2eYG_card,[role="dialog"],[role="menu"]' });
   let frame, observer, lastGrid, lastSource;
   const popups = new Map(), exits = new Map();
   const measurePopups = () => { for (const [el, state] of popups) if (el.isConnected) {
@@ -30,6 +30,11 @@
     frame.style.setProperty('--fluid-rightbar', `${match[2]}px`);
   }
   function scan() {
+    const sidebar = document.querySelector('.pI_x6G_sidebarCol');
+    if (sidebar && !sidebar.querySelector(':scope > .desktop-sidebar-material')) {
+      const material = document.createElement('div'); material.className = 'desktop-sidebar-material'; material.setAttribute('aria-hidden', 'true');
+      sidebar.dataset.liquidHost = ''; sidebar.prepend(material);
+    }
     for (const [el, state] of popups) if (!el.isConnected) {
       popups.delete(el);
       if (FluidMotion.reduced() || !state.rect.width) { FluidMotion.cancel(el); continue; }

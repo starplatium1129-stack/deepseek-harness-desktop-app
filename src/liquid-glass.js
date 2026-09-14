@@ -49,9 +49,11 @@
   }
   function refresh(el, record) {
     if (!el.isConnected || !enabled()) return remove(el, record);
+    const dark = document.documentElement.dataset.scheme === 'dark';
+    if (record.blur) record.blur.setAttribute('stdDeviation', dark ? '12' : '3.5');
     const w = el.offsetWidth, h = el.offsetHeight;
     if (w < 2 || h < 2) return;
-    const r = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, signature = `${w}:${h}:${r}`;
+    const r = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, signature = `${w}:${h}:${r}:${dark ? 'd' : 'l'}`;
     if (signature === record.signature) return;
     record.signature = signature;
     record.filter.setAttribute('x', '0'); record.filter.setAttribute('y', '0'); record.filter.setAttribute('width', w); record.filter.setAttribute('height', h);
@@ -62,8 +64,10 @@
     const id = `desktop-lens-${++serial}`;
     const filter = node('filter', { id, filterUnits: 'userSpaceOnUse', primitiveUnits: 'userSpaceOnUse', 'color-interpolation-filters': 'sRGB' });
     const map = node('feImage', { result: 'lens-map', preserveAspectRatio: 'none', x: 0, y: 0 });
-    filter.append(map, node('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: '2.4', result: 'soft-backdrop' }), node('feDisplacementMap', { in: 'soft-backdrop', in2: 'lens-map', scale: '32', xChannelSelector: 'R', yChannelSelector: 'G', result: 'refracted' }), node('feColorMatrix', { in: 'refracted', type: 'saturate', values: '1.18' }));
-    const record = { filter, map }; records.set(el, record);
+    const dark = document.documentElement.dataset.scheme === 'dark';
+    const blur = node('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: dark ? '12' : '3.5', result: 'soft-backdrop' });
+    filter.append(map, blur, node('feDisplacementMap', { in: 'soft-backdrop', in2: 'lens-map', scale: '32', xChannelSelector: 'R', yChannelSelector: 'G', result: 'refracted' }), node('feColorMatrix', { in: 'refracted', type: 'saturate', values: '1.18' }));
+    const record = { filter, map, blur }; records.set(el, record);
     // Populate feImage before attaching: an empty href creates an invalid resource timing entry in Chromium.
     refresh(el, record); defs.append(filter);
     el.dataset.liquid = ''; el.style.backdropFilter = `url("${document.URL.split('#')[0]}#${id}")`; resize.observe(el);
@@ -92,7 +96,7 @@
     let hover;
     document.addEventListener('pointermove', event => {
       if (!enabled() || rootMotionReduced()) return;
-      const el = event.target.closest('[data-liquid]');
+      const el = event.target.closest('[data-liquid]') || event.target.closest('[data-liquid-host]')?.querySelector(':scope > [data-liquid]');
       if (hover && hover !== el) { hover.style.removeProperty('--light-x'); hover.style.removeProperty('--light-y'); }
       hover = el; if (!el) return;
       const rect = el.getBoundingClientRect();

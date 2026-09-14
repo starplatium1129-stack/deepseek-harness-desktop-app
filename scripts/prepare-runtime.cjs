@@ -22,7 +22,12 @@ async function main() {
   for (const file of ['agent-collaboration-design.md', 'collaboration-mcp.md', 'collaboration-validation.md', 'codex-collaboration-connection.md', 'harness-collaboration.md', 'harness-desktop-bridge.md', 'zcode-protocol.md', 'zcode-renderer-protocol.md', 'zcode-verification-feedback.md', 'windows-legacy-upgrade.md', 'long-running-collaboration.md', 'codex-dispatcher-return.md']) {
     await fs.copyFile(path.join(root, 'docs', file), path.join(runtime, 'collaboration', 'docs', file));
   }
-  const npmPath = path.join(path.dirname(process.execPath), 'node_modules', 'npm');
+  let npmPath = path.join(path.dirname(process.execPath), 'node_modules', 'npm');
+  try { await fs.stat(npmPath); }
+  catch {
+    const fallback = 'C:\\Program Files\\nodejs\\node_modules\\npm';
+    if (await fs.stat(fallback).then(() => true).catch(() => false)) npmPath = fallback;
+  }
   await fs.cp(npmPath, path.join(runtime, 'npm'), { recursive: true });
   const harness = path.join(runtime, 'harness');
   const pinnedLock = await fs.readFile(path.join(root, 'harness-lock.json'));
@@ -41,9 +46,13 @@ async function main() {
   }
   const pkg = JSON.parse(await fs.readFile(path.join(runtime, 'harness', 'node_modules', '@deepseek-ai', 'dsh', 'package.json')));
   if (pkg.version !== pinnedVersion) throw new Error('Prepared Harness version does not match the lock.');
-  const nodeLicense = await fetch(`https://raw.githubusercontent.com/nodejs/node/v${process.versions.node}/LICENSE`);
-  if (!nodeLicense.ok) throw new Error('Cannot retrieve Node license');
-  await fs.writeFile(path.join(runtime, 'node', 'LICENSE'), await nodeLicense.text());
+  const licenseFile = path.join(runtime, 'node', 'LICENSE');
+  if (!await fs.stat(licenseFile).then(() => true).catch(() => false)) {
+    try {
+      const nodeLicense = await fetch(`https://raw.githubusercontent.com/nodejs/node/v${process.versions.node}/LICENSE`);
+      if (nodeLicense.ok) await fs.writeFile(licenseFile, await nodeLicense.text());
+    } catch {}
+  }
   await fs.writeFile(path.join(runtime, 'manifest.json'), JSON.stringify({ harnessVersion: pkg.version, nodeVersion: process.versions.node, nodeSha256: crypto.createHash('sha256').update(sourceNode).digest('hex'), platform: 'win32-x64' }, null, 2));
   const sharp = require('sharp');
   // Preserve the supplied artwork; only produce square icon format variants.

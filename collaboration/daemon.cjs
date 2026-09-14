@@ -40,7 +40,7 @@ async function privateDirectory(dataDir) {
   if (process.platform === 'win32') {
     // Node chmod does not implement Windows ACLs. Remove inherited entries and
     // grant this user's SID alone full control before creating any credentials.
-    const script = "$ErrorActionPreference='Stop'; $p=$env:DSH_COLLAB_PRIVATE_DIR; $sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User; $acl=New-Object System.Security.AccessControl.DirectorySecurity; $acl.SetOwner($sid); $acl.SetAccessRuleProtection($true,$false); $rule=New-Object System.Security.AccessControl.FileSystemAccessRule($sid,'FullControl','ContainerInherit,ObjectInherit','None','Allow'); $acl.AddAccessRule($rule); [System.IO.Directory]::SetAccessControl($p,$acl)";
+    const script = "$ErrorActionPreference='Stop'; $p=$env:DSH_COLLAB_PRIVATE_DIR; $sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User; $acl=[System.IO.Directory]::GetAccessControl($p); $acl.SetAccessRuleProtection($true,$false); $rule=New-Object System.Security.AccessControl.FileSystemAccessRule($sid,'FullControl','ContainerInherit,ObjectInherit','None','Allow'); $acl.ResetAccessRule($rule); [System.IO.Directory]::SetAccessControl($p,$acl)";
     await exec(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32/WindowsPowerShell/v1.0/powershell.exe'), ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 15000, env: { ...process.env, DSH_COLLAB_PRIVATE_DIR: directory } });
   } else {
     if (stat.uid !== process.getuid()) throw new Error('IPC directory belongs to another user');

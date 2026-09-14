@@ -19,7 +19,7 @@ class AppearanceAdapter {
       const key = await contents.insertCSS(css + '\n' + design + '\n' + accessibility);
       const previous = this.keys.get(contents); this.keys.set(contents, key);
       if (previous) await contents.removeInsertedCSS(previous);
-      await contents.executeJavaScript(`${motion}\n${glass}\n${script}\nwindow.__desktopAppearance = ${JSON.stringify(payload)};
+      await contents.executeJavaScript(`${motion}\n${glass}\n${script}\ndocument.documentElement.dataset.appearanceHost = 'workspace';\nwindow.__desktopAppearance = ${JSON.stringify(payload)};
         DesktopAppearance.apply(window.__desktopAppearance);
         window.dispatchEvent(new CustomEvent('desktop:appearance', { detail: { mode: window.__desktopAppearance.settings.mode } }));
         if (!window.__desktopAppearanceMedia) {
@@ -30,4 +30,8 @@ class AppearanceAdapter {
     this.queue = next.catch(() => {}); return next;
   }
 }
-module.exports = { AppearanceAdapter };
+function acceptsThemeEvent(event, contents, origin, mode) {
+  if (!['light', 'dark', 'system'].includes(mode) || !contents || contents.isDestroyed() || event.sender !== contents || event.senderFrame !== contents.mainFrame) return false;
+  try { return new URL(event.senderFrame.url).origin === origin && new URL(contents.getURL()).origin === origin; } catch { return false; }
+}
+module.exports = { AppearanceAdapter, acceptsThemeEvent };
