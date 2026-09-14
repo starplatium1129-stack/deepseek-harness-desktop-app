@@ -124,7 +124,7 @@ test('two real MCP clients share one task; EOF preserves native execution and ex
   assert.equal(await fs.readFile(path.join(f.repo, 'hello.txt'), 'utf8'), 'original\n');
   const cancelled = await b.call('submit_task', { ...f.submit, idempotencyKey: 'cancel-this' });
   await b.call('cancel_task', { taskId: cancelled.id });
-  await waitUntil(async () => { const task = await b.call('get_task', { taskId: cancelled.id }); return task.state === 'cancelled' && !task.lease; });
+  await waitUntil(async () => { const task = await b.call('get_task', { taskId: cancelled.id }); return task.state === 'cancelled' && !task.lease && !f.daemon.service.active.has(cancelled.id); });
   await b.close();
   assert.equal(f.closes, 0);
   await f.daemon.close();
