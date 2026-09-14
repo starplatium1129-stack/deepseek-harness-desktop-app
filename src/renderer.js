@@ -1,5 +1,17 @@
 const $ = id => document.getElementById(id);
+const feedback = RendererFeedback.create(document);
+const activeScopes = new Set();
+let currentState = {};
+function syncActionBusy() {
+  const updateBusy = activeScopes.has('update-message') || !!currentState.updating;
+  $('download').disabled = updateBusy; $('check').disabled = updateBusy;
+  const keyBusy = activeScopes.has('key-message');
+  $('save-key').disabled = keyBusy; $('api-key').readOnly = keyBusy;
+  if (keyBusy) $('api-key').setAttribute('aria-busy', 'true'); else $('api-key').removeAttribute('aria-busy');
+}
 function render(s) {
+  currentState = s;
+  feedback.render(s);
   const ready = s.phase === 'ready';
   $('zoom-level').textContent = `${Math.round((s.zoom || 1) * 100)}%`;
   $('dot').className = s.phase;
@@ -15,19 +27,22 @@ function render(s) {
   DesktopInteraction.render(page, s.focusRequest);
   window.usageDashboard?.setState(s);
   $('key-state').textContent = s.hasKey ? '已加密保存' : '尚未在桌面端保存';
-  if (s.keyMessage) $('key-message').textContent = s.keyMessage;
-  if (s.updateMessage) $('update-message').textContent = s.updateMessage;
   $('download').hidden = !s.update?.newer || !!s.pending;
-  $('download').disabled = !!s.updating; $('check').disabled = !!s.updating;
+  syncActionBusy();
   $('download').textContent = s.updating ? '准备中…' : '下载并验证';
   $('apply').hidden = !s.pending; $('rollback').hidden = !s.canRollback;
 }
-let errorTimer;
-async function action(name, value) {
-  $('error').hidden = true;
+async function action(name, value, trigger) {
+  const scope = RendererFeedback.scopeFor(name);
+  if (scope && activeScopes.has(scope)) return false;
+  if (scope) { activeScopes.add(scope); syncActionBusy(); }
+  feedback.begin(name);
   try { const result = await window.desktop.action(name, value); if (result?.error) throw new Error(result.error); return true; }
-  catch (error) { $('error').textContent = error.message; $('error').hidden = false; clearTimeout(errorTimer); errorTimer = setTimeout(() => $('error').hidden = true, 16000); return false; }
+  catch (error) { feedback.failure(name, error.message, trigger); return false; }
+  finally { if (scope) { activeScopes.delete(scope); syncActionBusy(); } }
 }
-document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => action(button.dataset.action)));
-$('save-key').addEventListener('click', async () => { const key = $('api-key').value; if (!key.trim()) return; $('save-key').disabled = true; try { if (await action('save-key', key)) $('api-key').value = ''; } finally { $('save-key').disabled = false; } });
+document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => action(button.dataset.action, undefined, button)));
+$('save-key').addEventListener('click', async () => { const key = $('api-key').value; if (!key.trim()) { feedback.validation('save-key', '请输入 API Key 后再保存。'); $('api-key').focus(); return; } if (key.length > 4096) { feedback.validation('save-key', 'API Key 不能超过 4096 个字符。'); $('api-key').focus(); return; } if (await action('save-key', key, $('save-key')) && $('api-key').value === key) $('api-key').value = ''; });
+$('api-key').addEventListener('input', () => { if (!feedback.hasValidation('save-key')) return; const key = $('api-key').value; if (!key.trim()) feedback.validation('save-key', '请输入 API Key 后再保存。'); else if (key.length > 4096) feedback.validation('save-key', 'API Key 不能超过 4096 个字符。'); else feedback.clearValidation('save-key'); });
+$('error-dismiss').addEventListener('click', () => feedback.dismiss());
 window.desktop.onState(render); window.desktop.state().then(render);
