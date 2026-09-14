@@ -11,9 +11,21 @@ header{gap:16px;height:58px;flex-wrap:nowrap;min-width:0}header nav{flex-shrink:
 .top-status #status-short{overflow:hidden;text-overflow:ellipsis}
 main,.card,.usage-card,.metric,.appearance-layout>*{min-width:0}
 .card p,.hint,.status-card p,.appearance-note{font-size:12px!important;line-height:1.8}
+.text-button{color:var(--action-text)}
+.text-button:hover{color:var(--ink)}
+#key-state{color:var(--muted)}
+.session-amount,.turn-buckets dd{color:var(--data-value)}
+.inline-error{color:var(--error-text)!important}
+#api-key[aria-invalid=true]{border-color:var(--error-text);box-shadow:inset 0 0 0 1px var(--error-text)}
+#error{z-index:100;display:flex;align-items:center;gap:16px;background:var(--error-surface);border-color:var(--error-edge);color:var(--error-text);padding:12px 14px 12px 20px;max-width:min(80%,720px)}
+#error-message{min-width:0;flex:1}
+#error-dismiss{min-height:30px;padding:5px 9px;flex-shrink:0;background:transparent;border-color:currentColor;color:inherit}
+#error-dismiss:hover{background:color-mix(in srgb,currentColor 10%,transparent);color:inherit}
+.trend-legend[aria-pressed=false]{opacity:1;text-decoration:line-through;text-decoration-thickness:1.5px}
+.trend-legend[aria-pressed=false]:before{background:repeating-linear-gradient(to right,currentColor 0 3px,transparent 3px 6px)}
 html[data-scheme] :is(.metric small,.usage-feedback,#usage-updated,.unit-label,.count-badge,.session-title small,.turn-meta,.turn-heading>span:not(.turn-state),.turn-buckets dt,.session-id,.usage-method,.usage-empty p,.usage-empty h3,.empty-inline,.chart-detail,.pricing-explanation,#price-basis,.price-sync-panel p,.card-label,.eyebrow){color:var(--muted)!important}
 .usage-chart svg text{fill:var(--muted)}
-.grid>.card,.usage-card,.metric:not(.metric-primary){background:var(--reading-surface)!important;backdrop-filter:none!important}
+html[data-appearance] :is(.grid>.card,.status-card,.usage-card,.metric:not(.metric-primary),.appearance-layout>.card){background:var(--reading-surface)!important;backdrop-filter:none!important}
 .metric-primary{background:linear-gradient(115deg,#365bc5,#4266c5);border-color:#5073d2}
 html[data-scheme] #usage-page .metric-primary :is(span,small){color:#fff!important}
 :root[data-scheme=light] :is(.metric-cost strong,.metric-cost .text-button,.model-cost,.session-amount small,.turn-cost){color:#23764f!important}
@@ -21,7 +33,7 @@ html[data-scheme] #usage-page .metric-primary :is(span,small){color:#fff!importa
 :root[data-scheme=light] .trend-cost{color:#b52649}:root[data-scheme=light] .trend-creation{color:#925217}:root[data-scheme=light] .trend-cache{color:#7242b7}:root[data-scheme=light] .trend-input{color:#315ac4}:root[data-scheme=light] .trend-output{color:#23764f}:root[data-scheme=light] .trend-other{color:#4c5c75}
 :root[data-scheme=dark] .trend-cost{color:#ff96aa}:root[data-scheme=dark] .trend-creation{color:#edb979}:root[data-scheme=dark] .trend-cache{color:#c6a5ff}:root[data-scheme=dark] .trend-input{color:#a3beff}:root[data-scheme=dark] .trend-output{color:#7ddbad}:root[data-scheme=dark] .trend-other{color:#b8c4d7}
 .turn-state{color:#80500d}.turn-state.complete{color:#216451}
-footer{gap:12px;flex-wrap:wrap}footer>span{line-height:1.7}
+footer{gap:12px;flex-wrap:wrap;background:var(--reading-surface);border:1px solid var(--edge);border-radius:12px;padding:12px 16px;margin-top:18px}footer>span{line-height:1.7}
 .actions,.hero-actions,.usage-toolbar,.section-heading,.session-controls{flex-wrap:wrap}
 .session-controls{display:flex;gap:8px;min-width:0;max-width:100%}
 .session-controls input{max-width:100%}

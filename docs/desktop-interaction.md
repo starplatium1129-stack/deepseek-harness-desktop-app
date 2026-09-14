@@ -48,6 +48,8 @@ node scripts/desktop-smoke.cjs --packaged
 node scripts/appearance-smoke.cjs --packaged
 ```
 
+`desktop-smoke --packaged` 默认验证 `release/win-unpacked/DeepSeek Harness Desktop.exe`，并兼容已有的外观预览目录；也可通过 `DSH_SMOKE_EXECUTABLE` 指定其他预览分发包。
+
 桌面测试使用 Electron 原生 `sendInputEvent` 路径验证桌面级快捷键，普通表单交互使用 Playwright。覆盖键盘切页、输入焦点恢复、保存失败保留输入、模态焦点循环、Esc、重复打开、F6 跨视图、编辑菜单模板、缩放与窗口重启恢复。
 
 布局矩阵为 760×560 / 100%、1000×740 / 125%、760×560 / 200%、1440×980 / 100%，检查三个桌面页面及导航无横向溢出。缩放截图使用 Electron 原生 capturePage，避免 CDP 全页截图在页面缩放下裁切错误。

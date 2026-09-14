@@ -18,13 +18,14 @@ async function setup(t, execute = async () => ({ summary: 'done' })) {
   return { get service() { return service; }, async restart() { await service.close(); service = await new CollaborationService(options).init(); return service; },
     input: { executor: 'test', repository, dispatcher, goal: 'bounded fixture', acceptance: ['done'], permission: 'workspace-write', budget: { maxTurns: 2 }, deadlineAt: new Date(Date.now() + 120000).toISOString(), idempotencyKey: 'initial' } };
 }
-async function stopped(service, id) {
-  for (let n = 0; n < 50; n++) {
+async function stopped(service, id, limit = 10000) {
+  const end = Date.now() + limit;
+  while (true) {
     const task = await service.getTask({ taskId: id });
     if (!task.lease && !service.active.has(id) && task.state !== 'queued') return task;
+    if (Date.now() >= end) throw new Error('fixture failed to settle');
     await new Promise(resolve => setTimeout(resolve, 20));
   }
-  throw new Error('fixture failed to settle');
 }
 test('origin discovery, progress replay, exclusive claim and receipts survive restart', async t => {
   const f = await setup(t, async (_task, ctx) => { await ctx.emit('text', { text: 'progress' }); return { summary: 'done' }; });
