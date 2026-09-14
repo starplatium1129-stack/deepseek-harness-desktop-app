@@ -27,6 +27,8 @@
 
 说明与边界见 [外观设置](docs/appearance.md)、[设计实现](docs/apple-design-reference.md)、[桌面交互](docs/desktop-interaction.md) 和 [0.4.0 发布说明](docs/releases/0.4.0.md)。升级前请结束当前任务并退出旧版，再运行安装包。
 
+通用验收依据见 [Apple HIG Web 设计规范](docs/design/apple-hig-web-guidelines.md)，本轮源码核查见 [2026-09-14 设计审查](docs/design/apple-hig-audit-2026-09-14.md)。审查区分已有实现、确定缺口与未执行的实机验证；规范入库不表示运行时已经全面达标，也不要求移植 HUIYU 的品牌或主题约束。
+
 ## 用量统计与成本（0.2.3）
 
 当前源码新增独立「用量统计」页面：总览、每日趋势、模型筛选、会话搜索与排序、逐轮明细，以及打开原会话。支持 Token 总成本估算、可编辑单价、models.dev 在线价格同步及本机 cc-switch 价格文件同步。自定义单价不被同步覆盖，未上报用量及缺失价格明确标注，不混入上下文估算或订阅额度。功能口径与验收方法见 [用量统计说明](docs/usage-dashboard.md)。此功能已纳入 0.2.3 本地构建。
